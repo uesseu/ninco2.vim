@@ -1,0 +1,280 @@
+*ninco.vim.txt*	  ChatGPT and some compatible API on vim.
+
+Author: Shoichiro Nakanishi <sheepwing@kyudai.jp>
+License: MIT license
+
+==============================================================================
+CONTENTS                                                        *slide-contents*
+
+Introduction		|ninco2-introduction|
+Requirements  	 	|ninco2-requirements|
+Easy way  	 	|ninco2-easy|
+Tree style  	 	|ninco2-tree|
+Configuration  	 	|ninco2-configuration|
+Usage	  	 	|ninco2-usage|
+Openai compatible API  	|ninco2-api|
+
+==============================================================================
+INTRODUCTION                                                *ninco-introduction*
+ChatGPT compatible tree style client for vim and neovim,
+written in typescript by denops.
+It depends on openai compatible web api.
+There is a chatgpt compatible interface of LLAMA and so you can use it.
+
+It is still under developping and destructive change may be done.
+It is just for my daily life, work and hobby.
+
+Good and bad point of ninco.vim is simplicity and cheapness.
+However, I use it in daily life and it is useful for me. It can...
+
+- Work on vim/neovim
+- Fundamental function of AI client
+- Clone thread and goback with tree like UI
+- Save and load configuration and talk log
+- Almost all the commands can work by method chain
+
+==============================================================================
+Requirements                                    *ninco-requirements*
+
+Vim or neovim, Denops are needed.
+If you use service of openai, API key of openai is also needed.
+About library, it depends only on denops and so please see
+the requirements of denops. Denops cannot work on old vim or neovim.
+
+==============================================================================
+Easy way                                               |ninco-easy|
+
+At first make configuration dictionary.
+In the case of openai, api key is required.
+>
+  call ninco#new(#{key: "hogehogefugafuga"})->ninco#make_command()
+<
+Then, command named 'Ai' is yielded.
+You can put some question.
+>
+  Ai Hello! Please teach me about vim!
+<
+If you do not put string, the string which is the last
+visual selection becomes the argument.
+>
+  Ai
+<
+This is the most easy way. But easy way is not always good way.
+
+==============================================================================
+Tree    	 	                    |ninco-tree|
+
+Tree style UI is one of the feature of ninco.
+>
+  let ai = ninco#new(#{key: "hogehogefugafuga"})->ninco#make_command()
+  call ninco#copy(ai)->ninco#make_command()
+  call ninco#new(#{key: "hogehogefugafuga"})->ninco#make_command()
+  call ninco#tree_split()
+<
+
+==============================================================================
+Configuration  	 	                    |ninco-configuration|
+
+Ninco2 was developped as software easy to configure.
+This can be configured by dictionary.
+Dictionary of vim/neovim can be read like below.
+>
+  let config = readfile('hoge.json')->join("\n")->json_decode()
+<
+
+The items of json or dictionary is below.
+
+body: dictionary
+    The body of messages.
+    This is yielded by talk between AI and you.
+    You can put it before talk.
+name: string
+    Name of thread. This may be modified when you use it.
+    It can be empty if you do not want to fill.
+    Default is 'ai'.
+command: string
+    Shell command.
+    Ninco can put result of talk into shell command through {stdin}.
+command_args: Array<string>
+    Arguments of shell command.
+print: boolean
+    Whether write talk log into vim buffer or not.
+pre_user_write: string
+    When you print the talk log, It will be inserted before your question.
+    Default is '# '.
+post_user_write: string
+    When you print the talk log, It will be inserted before your question.
+    Default is "\n--------------------\n".
+repeat: boolean
+    Repeat what you say on vim. Default is {v:true}.
+model: string
+    Model name. Default is "gpt-4.1-nano".
+url: string 
+    Url of web api.
+    Default is "https://api.openai.com/v1/chat/completions"
+key: string 
+    Key of your account.
+    Please put your api key.
+max_length: number 
+    If the length of talk thread is over this number, it will be compressed.
+compress_num: number
+    Number to compress at once.
+compress_style: string
+    Default is 'compress'. It is only 'compress' now.
+compress_prompt: string
+    Prompt to apply compress.
+    Default is 'Please summarize this talk log.'
+winid: string 
+    ID of window to put result.
+log: Array<Array<object>>
+    Log of thread to go back.
+    This should be yielded by talk of AI and you.
+    You should not edit it.
+dry_run: boolean
+    Do not run AI but check output. Just for debug.
+    Default is {v:false}
+parent: string
+    Name of parent thread.
+    This should be yielded by ninco2 automatically.
+children: Array<string>
+    Names of child threads.
+    This should be yielded by ninco2 automatically.
+
+Example
+>
+  let option = #{
+    \name: 'ai',
+    \key: 'hogehogefugafuga',
+    \winid: 'CHATGPT',
+    \max_length: 20,
+    \compress_num: 5}
+<
+==============================================================================
+Usage                    	 	                    |ninco-usage|
+
+ninco#new(options=#{}, name='ai')                            |ninco#new()|
+
+Makes a new AI talk thread. You should put options.
+Default dictionary has no openai api_key or url of your local server.
+Returns the name of talk thread.
+
+Example
+>
+  let ai = #{key: 'fugafugahogehoge'}->ninco#new()
+<
+
+ninco#make_command(name)                           |ninco#make_command()|
+
+Makes a command from the name of AI talk thread.
+Be careful, it does not check name of commands.
+
+Example
+>
+  ninco#new(#{key: 'fugafugahogehoge'})->ninco#make_command()
+<
+
+ninco#run(name, prompts, ...)                           |ninco#run()|
+
+Example
+>
+  let ai = #{key: 'fugafugahogehoge'}->ninco#new()
+  call ninco#run(ai, 'hello')
+<
+Function to talk with AI. This is the most important function of ninco.
+
+ninco#get_selection()                               |ninco#get_selection()|
+
+Get visual selected text.
+
+ninco#delete(name)                                      |ninco#delete()|
+
+Delete an AI talk thread.
+
+ninco#tree_window(winid)                              |ninco#tree_window()|
+
+Write a tree of AI talk threads in tree style.
+It requires window id to write in.
+
+ninco#get_param(name, param)                           |ninco#get_param()|
+
+Get parameter of an AI talk thread.
+Returns name.
+
+ninco#config(name, param)                           |ninco#config()|
+
+Rewrite config of AI talk thread.
+Returns name.
+
+ninco#option(name, param)                           |ninco#option()|
+
+Rewrite deeper configuration of AI.
+For example, temperature.
+Returns name.
+
+ninco#status(name)                           |ninco#status()|
+
+Show whole status of an AI talk thread.
+
+ninco#goback(name, num)                      |ninco#goback()|
+
+Let one AI talk thread num before.
+You and AI talk together and so one conversation
+consists of two texts. And so, num is 2 in daily life.
+
+Example
+>
+  call ninco#goback('ai', 2)
+<
+
+ninco#copy(source, dest='')                     |ninco#copy()|
+
+Copy AI talk thread. source is name of AI talk thread.
+It renames the name if dest is '' or is same as source.
+
+Example
+>
+  call ninco#copy('ai')->ninco#goback(2)
+<
+ninco#put_window(args, winname)                       |ninco#put_window()|
+
+Put text into other window.
+
+ninco#compress(name)                               |ninco#compress()|
+
+Compress AI talk thread.
+
+ninco#save_all(path, delete_key=v:true)            |ninco#save_all()|
+
+Save all the AI talk threads as a json file.
+
+ninco#save(name, path, delete_key=v:true)          |ninco#save()|
+
+Save an AI talk thread as a json file.
+
+ninco#load(name, path)                             |ninco#load()|
+
+Load an AI talk thread from a json file.
+
+ninco#load_all(path)                               |ninco#load_all()|
+
+Load all the AI talk threads from a json file.
+
+ninco#list_talk()                                  |ninco#list_talk()|
+
+Returns AI talk thread names.
+
+ninco#get_commands()                                  |ninco#get_commands()|
+
+Returns dictionary of AI command and the internal names.
+
+==============================================================================
+Openai compatible local server                          *ninco-api*
+If you want to use openai compatible server on localhost,
+you need not use api_key and model. Just use blank string.
+And you should set url.
+You can make compatible server by text-generation-webui.
+https://github.com/oobabooga/text-generation-webui
+Using this, you can use it in offline environment easily.
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:noet:fen:noet:

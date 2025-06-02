@@ -1,6 +1,4 @@
-//import { Denops } from "https://deno.land/x/denops_std@v1.0.0/mod.ts";
 import {Denops, execute, call, cmd} from "jsr:@denops/std@^7.0.0/function";
-//import { execute, call } from "https://deno.land/x/denops_std@v1.0.0/helper/mod.ts";
 
 let defaultKey = ""
 let defaultModel = "gpt-4.1-nano"
@@ -20,7 +18,7 @@ class Order{
   body // The body of messages.
   name: string // Name of thread
   command: string // Command name and arguments
-  command_arg: Array<string>
+  command_args: Array<string>
   print: boolean // Whether write in vim buffer
   repeat: boolean // Repeat what you say on vim
   model: string // Model name
@@ -29,11 +27,14 @@ class Order{
   max_length: number  // If over, compress
   compress_num: number // Number to compress
   compress_style: string // [summarize, delete](Now, summarize only)
+  compress_prompt: string // Prompt to compress
   winid: string  // ID of window
   log: Array<Array<object>> // Log of thread to go back
   dry_run: boolean // Just for debug.
   parent: string // Name of parent thread
   children: Array<string> // Names of child threads
+  pre_user_write: string
+  post_user_write: string
 
   /**
    * Setup order object to make JSON to send to openai.
@@ -41,19 +42,22 @@ class Order{
    */
   constructor(print = true, repeat = true, command = '',
     name = '', key = defaultKey, url = defaultUrl,
-    model = defaultModel, command_arg = [],
+    model = defaultModel, command_args = [],
     max_length = 10, compress_num = 4, winid = '',
-    dry_run = false, order = null){
+    dry_run = false, order = null, pre_user_write = '# ',
+    post_user_write = "\n--------------------\n",
+    options = {}, compress_prompt = COMPRESS_PROMPT){
     this.body = {
       model: model,
       messages: [],
       stream: true,
     }
+    this.body = {...this.body, ...options}
     this.name = name
     this.print = print
     this.repeat = repeat
     this.command = command
-    this.command_arg = command_arg
+    this.command_args = command_args
     this.key = key
     this.url = url
     this.max_length = max_length
@@ -63,6 +67,9 @@ class Order{
     this.dry_run = dry_run
     this.parent = ''
     this.children = []
+    this.pre_user_write = pre_user_write
+    this.post_user_write = post_user_write
+    this.compress_prompt = compress_prompt
   }
 
   /**
@@ -71,10 +78,13 @@ class Order{
    */
   putParameter(param: any){
     for (let p in param){
-      if (p in this) this[p] = param[p]
+      if (p in this && p !== 'body') this[p] = param[p]
     }
   }
 
+  setOptions(param: any){
+    this.body= {...this.body, ...param}
+  }
   /**
    * Put system parameter to the last of message.
    * @param {string} content - Content of message.
@@ -87,6 +97,26 @@ class Order{
     )
   }
 
+  compress(denops){
+    if (this.max_length <= this.body.messages.length){
+      let tmpOrder: Order = new Order()
+      tmpOrder.key = this.key
+      tmpOrder.model = this.model
+      tmpOrder.print = false
+      tmpOrder.repeat = false
+      tmpOrder.url = this.url
+      tmpOrder.body.messages = this.removeOld()
+      tmpOrder.putUser(
+        this.compress_prompt + ":\n" + JSON.stringify(this.removeOld())
+      )
+      if (this.dry_run){
+        this.unshiftHistory('compressed')
+      } else {
+        chatgpt(denops, tmpOrder).then(x=>this.unshiftHistory(x))
+      }
+    }
+  }
+
   /**
    * Put user parameter to the last of message.
    * @param {string} content - Content of message.
@@ -97,6 +127,11 @@ class Order{
     this.log[this.log.length-1].push(
       {kind: "normal", role: "user", content: content}
     )
+  }
+
+  order(denops, text: string){
+    this.putUser(text)
+    chatgpt(denops, this).then(x=>this.putAssistant(x))
   }
 
   /**
@@ -134,7 +169,7 @@ class Order{
     order.print = this.print
     order.repeat = this.repeat
     order.command = this.command
-    order.command_arg = copy(this.command_arg)
+    order.command_args = copy(this.command_args)
     order.key = this.key
     order.url = this.url
     order.max_length = this.max_length
@@ -297,20 +332,22 @@ function parseResponse(response: any){
  */
 async function chatgpt(denops: Denops, order: Order){
   let allData = ""
-  let process = null
-  let writer = null
+  let process
+  let writer
   if (order.command !== ""){
     process = new Deno.Command(order.command, {
-      args: order.args,
+      args: order.command_args,
       stdin: "piped",
     }).spawn();
     writer = process.stdin.getWriter();
   }
   if (order.repeat){
-    putString(denops,
-              "# "+order.body.messages.slice(-1)[0].content
-              +"\n--------------------\n",
-              order.winid)
+    putString(
+      denops,
+      order.pre_user_write
+      + order.body.messages.slice(-1)[0].content
+      + order.post_user_write,
+      order.winid)
   }
   if (order.dry_run){
     if (order.print) putString(
@@ -350,40 +387,62 @@ async function chatgpt(denops: Denops, order: Order){
 /* Global object to talk with chatGPT. */
 let globalOrders = {}
 
-function nextId(id: string){
-  let splitted = id.split('_')
-  let num = Number(splitted[splitted.length - 1])
-  if (Number.isInteger(num)) return id + '_' + String(num + 1)
-  return id + '_' + '1'
+function isExisting(id: string){
+  let exists = false
+  for (let n in globalOrders){
+    if(n === id) exists = true
+  }
+  return exists
 }
 
+function nextId(id: string){
+  while (isExisting(id)){
+    let splitted = id.split('_')
+    let num = Number(splitted[splitted.length - 1])
+    if (Number.isInteger(num)){
+      id = splitted.slice(0, splitted.length-1).join('_') + '_' + String(num + 1)
+    } else {
+      id += '_1'
+    }
+  }
+  return id
+}
 
 export async function main(denops: Denops): Promise<void> {
   denops.dispatcher = {
 
-    async init(key: string, model: string, url: string): Promise<void> {
-      defaultKey = key
-      defaultModel = model
-      defaultUrl = url
-    },
-
-    async new(name: string, options: any): Promise<void>{
+    new(name: string, options: any): string{
+      if (name === 'ai') name = nextId(name)
       if (name in globalOrders){
         console.log(`${name} is duplicated and could not made.`)
-        return undefined
+        return ''
       }
       options.name = name
       globalOrders[name] = new Order()
       globalOrders[name].putParameter(options)
+      return name
     },
 
-    async delete(name): Promise<void>{
+    async delete(name: string): Promise<void>{
+      let parent: string = globalOrders[name].parent
+      for (let n in globalOrders[parent]){
+        if (globalOrders[parent].children[n] === name)
+          globalOrders[parent].children.splice(n, n)
+      }
+      let child: string
+      for (let n in globalOrders[name].children){
+        child = globalOrders[name].children[n]
+        globalOrders[child].parent = ''
+      }
       delete globalOrders[name]
     },
 
     async config(name: string, options: any): Promise<void>{
       globalOrders[name].putParameter(options)
-      execute(denops, 'echo "' + name + '"')
+    },
+
+    async option(name: string, options: any): Promise<void>{
+      globalOrders[name].setOptions(options)
     },
 
     tree(): string{
@@ -407,7 +466,11 @@ export async function main(denops: Denops): Promise<void> {
         for (let c in data){
           if (data[c].kind === 'normal'){
             if (data[c].role === 'user'){
-              result += '# ' + data[c].content + "\n--------------------\n"
+              result += (
+                globalOrders[name].pre_user_write
+                + data[c].content
+                + globalOrders[name].post_user_write
+              )
             } else if (data[c].role === 'assistant'){
               result += data[c].content + "\n"
             }
@@ -426,7 +489,7 @@ export async function main(denops: Denops): Promise<void> {
     },
 
     async save(name: string, path: string, deleteKey=true): Promise<void>{
-      let toSave = null
+      let toSave: Order
       if (deleteKey){
         toSave = copy(globalOrders[name])
         toSave.key = ''
@@ -437,8 +500,14 @@ export async function main(denops: Denops): Promise<void> {
       .then(x=>console.log(`Written to ${name}`))
     },
 
-    async load(name: string, path: string): Promise<void>{
-      Deno.readTextFile(path).then(x=> globalOrders[name] = JSON.parse(x))
+    async load(path: string, name: string = ''): Promise<void>{
+      Deno.readTextFile(path).then(
+        x=> {
+          let option = JSON.parse(x)
+          name = name === '' ? nextId(option.name) : nextId(name)
+          globalOrders[name] = name
+        }
+      )
     },
 
     saveAll(path: string, deleteKey=true): void{
@@ -460,50 +529,21 @@ export async function main(denops: Denops): Promise<void> {
     },
 
     async order(name, order){
-      let letter: Order
-      if (name === '') {
-        letter = new Order()
-      } else {
-        if(!(name in globalOrders)) globalOrders[name] = new Order()
-        letter = globalOrders[name]
-      }
-      letter.putUser(order)
-      chatgpt(denops, letter).then(x=>letter.putAssistant(x))
+      globalOrders[name].order(denops, order)
     },
 
-    async compress(name, prompt = COMPRESS_PROMPT): Promise<void>{
-      const order: Order = globalOrders[name]
-      if (globalOrders[name].max_length
-          <= globalOrders[name].body.messages.length){
-        let tmpOrder: Order = new Order()
-        tmpOrder.key = order.key
-        tmpOrder.model = order.model
-        tmpOrder.print = false
-        tmpOrder.repeat = false
-        tmpOrder.url = order.url
-        tmpOrder.body.messages = order.removeOld()
-        tmpOrder.putUser(
-          prompt + JSON.stringify(order.removeOld())
-        )
-        if (globalOrders[name].dry_run){
-          order.unshiftHistory('compressed')
-        } else {
-          chatgpt(denops, tmpOrder).then(x=>order.unshiftHistory(x))
-        }
-      }
+    async compress(name): Promise<void>{
+      globalOrders[name].compress(denops)
     },
 
-    async copy(name: string, new_name: string = ''): Promise<void>{
+    copy(name: string, new_name: string = ''): string{
       if (new_name === '') new_name = nextId(name)
       globalOrders[new_name] = globalOrders[name].copy()
       globalOrders[new_name].parent = name
       globalOrders[new_name].name = new_name
       globalOrders[name].children.push(new_name)
       globalOrders[name].children = Array(...new Set(globalOrders[name].children))
-    },
-
-    async reset(name: string): Promise<void>{
-      globalOrders[name].reset()
+      return new_name
     },
 
     async putSystem(order: string, name: string): Promise<void>{
@@ -512,6 +552,14 @@ export async function main(denops: Denops): Promise<void> {
 
     async printLog(name: string): Promise<void>{
       console.log(globalOrders[name].body.messages)
+    },
+
+    listTalk(): Array<string>{
+      let result = Array()
+      for (let n in globalOrders){
+        result.push(n)
+      }
+      return result
     }
 
   };
