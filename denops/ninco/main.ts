@@ -35,6 +35,7 @@ class Order{
   children: Array<string> // Names of child threads
   pre_user_write: string
   post_user_write: string
+  callback: string // Callback vim function
 
   /**
    * Setup order object to make JSON to send to openai.
@@ -46,7 +47,8 @@ class Order{
     max_length = 10, compress_num = 4, winid = '',
     dry_run = false, order = null, pre_user_write = '# ',
     post_user_write = "\n--------------------\n",
-    options = {}, compress_prompt = COMPRESS_PROMPT){
+    options = {}, compress_prompt = COMPRESS_PROMPT,
+    callback = 'ninco#tree_window'){
     this.body = {
       model: model,
       messages: [],
@@ -70,6 +72,7 @@ class Order{
     this.pre_user_write = pre_user_write
     this.post_user_write = post_user_write
     this.compress_prompt = compress_prompt
+    this.callback = callback
   }
 
   /**
@@ -112,7 +115,8 @@ class Order{
       if (this.dry_run){
         this.unshiftHistory('compressed')
       } else {
-        chatgpt(denops, tmpOrder).then(x=>this.unshiftHistory(x))
+        chatgpt(denops, tmpOrder)
+          .then(x=>this.unshiftHistory(x))
       }
     }
   }
@@ -362,8 +366,8 @@ async function chatgpt(denops: Denops, order: Order){
       writer.releaseLock();
       await process.stdin.close();
     }
-    return "echo " + order.body.messages.slice(-1)[0].content
-  } else {
+    allData += order.body.messages.slice(-1)[0].content
+    } else {
     // Receive response of AI
     let resp = await order.receive()
     for await (const chunk of resp.body){
@@ -380,6 +384,7 @@ async function chatgpt(denops: Denops, order: Order){
     await process.stdin.close();
   }
   if (order.print) putString(denops, "\n", order.winid)
+  denops.call(order.callback)
   return allData
 }
 

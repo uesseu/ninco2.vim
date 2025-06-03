@@ -16,6 +16,9 @@ endfunction
 
 function! ninco#tree_window(winname='AITREE')
   let winid = a:winname->bufwinid()
+  if winid == -1
+    return
+  endif
   call win_execute(winid, 'silent! %d_')
   for line in denops#request('ninco', 'tree', [])->split("\n")
     call win_execute(winid, 'norm G')
