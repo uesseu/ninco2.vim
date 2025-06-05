@@ -48,7 +48,7 @@ function! ninco#_show_in_window(ai, vertical=v:false)
   return winid
 endfunction
 
-function! ninco#_split_window(winid='', vertical=v:false)
+function! ninco#split_window(winid='', vertical=v:false)
   if a:winid->bufwinid() != -1
     return
   endif
@@ -75,6 +75,11 @@ endfunction
 
 function ninco#config(name, options = #{})
   call denops#request('ninco', 'config', [a:name, a:options->extend(#{name: a:name})])
+  return a:name
+endfunction
+
+function ninco#set_winid(name, winid='')
+  call ninco#config(a:name, #{winid: a:name})
   return a:name
 endfunction
 
@@ -151,7 +156,7 @@ function! ninco#_show_ai()
 endfunction
 
 function! ninco#tree_split(vertical=v:true, winname='AITREE')
-  eval a:winname->ninco#_split_window(a:vertical)->ninco#tree_window()
+  eval a:winname->ninco#split_window(a:vertical)->ninco#tree_window()
 endfunction
 
 let s:cmd = {}
