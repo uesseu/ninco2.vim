@@ -283,12 +283,12 @@ class Order{
  * @param {string} text - String to write.
  * @returns {null} - It returns null.
  */
-function putString(denops: Denops, text: string, winid: string){
+function putString(denops: Denops, text: string, buf: string){
   let num = 0
-  denops.eval(`"${winid}"->bufwinid()`).then(x => {
+  denops.eval(`"${buf}"->bufwinid()`).then(x => {
     text.split("\n").map(d =>{
       if(num !== 0) denops.call('win_execute', x, 'norm o')
-      denops.call('ninco#put_window', d.replaceAll(' ', '\\ '), winid)
+      denops.call('ninco#put_window', d.replaceAll(' ', '\\ '), buf)
       num++
     })
   })

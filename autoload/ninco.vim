@@ -14,18 +14,18 @@ function! ninco#delete(name)
   return denops#request('ninco', 'delete', [a:name])
 endfunction
 
-function! ninco#tree_window(winname='AITREE')
-  let winid = a:winname->bufwinid()
+function! ninco#tree_window(buf='AITREE')
+  let winid = a:buf->bufwinid()
   if winid == -1
     return
   endif
   call win_execute(winid, 'silent! %d_')
   for line in denops#request('ninco', 'tree', [])->split("\n")
     call win_execute(winid, 'norm G')
-    call appendbufline(a:winname, '$'->line(a:winname->bufwinid())-1, line)
+    call appendbufline(a:buf, '$'->line(a:buf->bufwinid())-1, line)
   endfor
-  exec "au BufEnter ".a:winname." noremap <CR> :call ninco#_show_ai()<CR>"
-  exec "au BufLeave ".a:winname." noremap <CR> <CR>"
+  exec "au BufEnter ".a:buf." noremap <CR> :call ninco#_show_ai()<CR>"
+  exec "au BufLeave ".a:buf." noremap <CR> <CR>"
 endfunction
 
 function! ninco#get_param(name, param)
@@ -48,16 +48,16 @@ function! ninco#_show_in_window(ai, vertical=v:false)
   return winid
 endfunction
 
-function! ninco#split_window(winid='', vertical=v:false)
-  if a:winid->bufwinid() != -1
+function! ninco#split_window(buf='', vertical=v:false)
+  if a:buf->bufwinid() != -1
     return
   endif
-  execute (a:vertical ?'vsplit ':'split ').a:winid
+  execute (a:vertical ?'vsplit ':'split ').a:buf
   setlocal noswapfile
   setlocal wrap nonumber signcolumn=no filetype=markdown
-  call win_execute(a:winid->bufwinid(), 'setlocal modifiable', 1)
+  call win_execute(a:buf->bufwinid(), 'setlocal modifiable', 1)
   wincmd p
-  return a:winid
+  return a:buf
 endfunction
 
 function ninco#new(options = #{}, name='ai')
@@ -78,7 +78,7 @@ function ninco#config(name, options = #{})
   return a:name
 endfunction
 
-function ninco#set_winid(name, winid='')
+function ninco#set_winid(name, buf='')
   call ninco#config(a:name, #{winid: a:name})
   return a:name
 endfunction
@@ -110,17 +110,17 @@ function! ninco#run(context, order='%s', ...)
   return a:context
 endfunction
 
-function! ninco#put_window(args, winname) abort
-  let text = a:winname->getbufline('$')[-1] . a:args->substitute('\\ ', ' ', 'g')
-  let winid = a:winname->bufwinid()
+function! ninco#put_window(args, buf) abort
+  let text = a:buf->getbufline('$')[-1] . a:args->substitute('\\ ', ' ', 'g')
+  let winid = a:buf->bufwinid()
   call win_execute(winid, 'norm G')
-  call setbufline(a:winname, '$'->line(winid), text)
+  call setbufline(a:buf, '$'->line(winid), text)
   call win_execute(winid, 'norm $')
 endfunction
 
-function! ninco#compress(context)
+function! ninco#compress(buf)
   call denops#request('ninco', 'compress',
-        \[a:context, 'Please summaryze these messages.'])
+        \[a:buf, 'Please summaryze these messages.'])
 endfunction
 
 function! ninco#save_all(path, delete_key=v:true)
@@ -155,8 +155,8 @@ function! ninco#_show_ai()
   call ninco#_show_in_window(line[start:end-1])
 endfunction
 
-function! ninco#tree_split(vertical=v:true, winname='AITREE')
-  eval a:winname->ninco#split_window(a:vertical)->ninco#tree_window()
+function! ninco#tree_split(vertical=v:true, buf='AITREE')
+  eval a:buf->ninco#split_window(a:vertical)->ninco#tree_window()
 endfunction
 
 let s:cmd = {}
@@ -181,3 +181,30 @@ endfunction
 function ninco#get_commands()
   return s:cmd
 endfunction
+
+function! ninco#float(pos, insertmode=0) abort
+  if has('nvim')
+    let buf = nvim_create_buf(v:false, v:true)
+    call nvim_buf_set_lines(buf, 0, -1, v:true, [])
+    let opts = #{relative: 'editor', anchor: 'NW', style: 'minimal'} 
+    let opts = opts->extend(a:pos)
+    let winid = nvim_open_win(buf, 0, opts)
+  else
+    let winid = popup_create([], {})
+    let pos = #{line: a:pos['row']+1, col: a:pos['col']+1,
+          \maxheight: a:pos['height'], maxwidth: a:pos['width'],
+          \minheight: a:pos['height'], minwidth: a:pos['width'],
+          \}
+    call popup_move(winid, pos)
+  endif
+  return winid
+endfunction
+
+function! ninco#float_close(winid) abort
+  if has('nvim')
+    call nvim_win_close(a:winid, v:true)
+  else
+    call popup_close(a:winid))
+  endif
+endfunction
+
