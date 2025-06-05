@@ -204,6 +204,11 @@ class Order{
     let end = flat_log.length - 1
     while (num!==0){
       if(flat_log[end].kind === 'normal') num --
+      if(end === 0) {
+        this.body.messages = []
+        this.log = [[]]
+        return this
+      }
       end--
     }
     let start = end
