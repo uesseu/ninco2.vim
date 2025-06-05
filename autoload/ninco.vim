@@ -182,7 +182,7 @@ function ninco#get_commands()
   return s:cmd
 endfunction
 
-function! ninco#float(pos, insertmode=0) abort
+function! ninco#_float(pos, insertmode=0) abort
   if has('nvim')
     let buf = nvim_create_buf(v:false, v:true)
     call nvim_buf_set_lines(buf, 0, -1, v:true, [])
@@ -200,7 +200,7 @@ function! ninco#float(pos, insertmode=0) abort
   return winid
 endfunction
 
-function! ninco#float_close(winid) abort
+function! ninco#_float_close(winid) abort
   if has('nvim')
     call nvim_win_close(a:winid, v:true)
   else
