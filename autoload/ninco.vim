@@ -194,7 +194,7 @@ function! ninco#_find_vim_popup(buf) abort
   return -1
 endfunction
 
-function! ninco#_float(buf, pos, insertmode=0) abort
+function! ninco#_float(buf, pos) abort
   execute "badd ".a:buf
   if has('nvim')
     let opts = #{relative: 'editor', anchor: 'NW',
@@ -216,4 +216,3 @@ function! ninco#_float_close(winid) abort
     call popup_close(a:winid)
   endif
 endfunction
-
