@@ -28,7 +28,7 @@ class Order{
   compress_num: number // Number to compress
   compress_style: string // [summarize, delete](Now, summarize only)
   compress_prompt: string // Prompt to compress
-  winid: string  // ID of window
+  bufname: string  // ID of window
   log: Array<Array<object>> // Log of thread to go back
   dry_run: boolean // Just for debug.
   parent: string // Name of parent thread
@@ -44,7 +44,7 @@ class Order{
   constructor(print = true, repeat = true, command = '',
     name = '', key = defaultKey, url = defaultUrl,
     model = defaultModel, command_args = [],
-    max_length = 10, compress_num = 4, winid = '',
+    max_length = 10, compress_num = 4, bufname = '',
     dry_run = false, order = null, pre_user_write = '# ',
     post_user_write = "\n--------------------\n",
     options = {}, compress_prompt = COMPRESS_PROMPT,
@@ -64,7 +64,7 @@ class Order{
     this.url = url
     this.max_length = max_length
     this.compress_num = compress_num
-    this.winid = winid
+    this.bufname = bufname
     this.log = [[]]
     this.dry_run = dry_run
     this.parent = ''
@@ -178,7 +178,7 @@ class Order{
     order.url = this.url
     order.max_length = this.max_length
     order.compress_num = this.compress_num
-    order.winid = this.winid
+    order.bufname = this.bufname
     order.body = copy(this.body)
     order.log = copy(this.log)
     return order
@@ -285,10 +285,16 @@ class Order{
  */
 function putString(denops: Denops, text: string, buf: string){
   let num = 0
-  denops.eval(`"${buf}"->bufwinid()`).then(x => {
+  denops.eval(`"${buf}"->bufwinid()`).then(async (x) => {
+    let normal = false
+    if(x === -1) {
+      x = await denops.eval(`"${buf}"->ninco#_find_vim_popup()`)
+      normal = true
+    }
     text.split("\n").map(d =>{
       if(num !== 0) denops.call('win_execute', x, 'norm o')
-      denops.call('ninco#put_window', d.replaceAll(' ', '\\ '), buf)
+      denops.call('ninco#put_window', d.replaceAll(' ', '\\ '), buf, x, normal)
+      denops.cmd('redraw')
       num++
     })
   })
@@ -356,13 +362,13 @@ async function chatgpt(denops: Denops, order: Order){
       order.pre_user_write
       + order.body.messages.slice(-1)[0].content
       + order.post_user_write,
-      order.winid)
+      order.bufname)
   }
   if (order.dry_run){
     if (order.print) putString(
       denops,
       order.body.messages.slice(-1)[0].content + "\n",
-      order.winid
+      order.bufname
     )
     if (order.command !== ""){
       writer.write(
@@ -378,7 +384,7 @@ async function chatgpt(denops: Denops, order: Order){
     for await (const chunk of resp.body){
       const data = new TextDecoder().decode(chunk)
         .split("\n\n").map(parseResponse)
-      if (order.print) putString(denops, data.join(""), order.winid)
+      if (order.print) putString(denops, data.join(""), order.bufname)
       if (order.command !== "")
         writer.write(new TextEncoder().encode(data.join('')))
       allData += data.join("")
@@ -388,7 +394,7 @@ async function chatgpt(denops: Denops, order: Order){
     writer.releaseLock();
     await process.stdin.close();
   }
-  if (order.print) putString(denops, "\n", order.winid)
+  if (order.print) putString(denops, "\n", order.bufname)
   denops.call(order.callback)
   return allData
 }

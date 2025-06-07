@@ -33,19 +33,19 @@ function! ninco#get_param(name, param)
 endfunction
 
 function! ninco#_show_in_window(ai, vertical=v:false)
-  let winid = denops#request('ninco', 'get_param', [a:ai, 'winid'])
-  let winid = winid == '' ? a:ai : winid
-  if winid->bufwinid() == -1
-    execute (a:vertical ?'vsplit ':'split ').winid
+  let bufname = denops#request('ninco', 'get_param', [a:ai, 'bufname'])
+  let bufname = bufname == '' ? a:ai : bufname
+  if bufname->bufwinid() == -1
+    execute (a:vertical ?'vsplit ':'split ').bufname
     setlocal noswapfile
     setlocal wrap nonumber signcolumn=no
   endif
-  call win_execute(winid->bufwinid(), 'setlocal modifiable', 1)
-  call win_execute(winid->bufwinid(), 'silent! %d_')
+  call win_execute(bufname->bufwinid(), 'setlocal modifiable', 1)
+  call win_execute(bufname->bufwinid(), 'silent! %d_')
   for line in denops#request('ninco', 'show', [a:ai])->split("\n")
-    call appendbufline(winid, '$'->line(winid->bufwinid()), line)
+    call appendbufline(bufname, '$'->line(bufname->bufwinid()), line)
   endfor
-  return winid
+  return bufname
 endfunction
 
 function! ninco#split_window(buf='', vertical=v:false)
@@ -78,8 +78,8 @@ function ninco#config(name, options = #{})
   return a:name
 endfunction
 
-function ninco#set_winid(name, buf='')
-  call ninco#config(a:name, #{winid: a:name})
+function ninco#set_bufname(name, buf='')
+  call ninco#config(a:name, #{bufname: a:name})
   return a:name
 endfunction
 
@@ -110,9 +110,9 @@ function! ninco#run(context, order='%s', ...)
   return a:context
 endfunction
 
-function! ninco#put_window(args, buf) abort
+function! ninco#put_window(args, buf, winid = '-1', normal = v:false) abort
   let text = a:buf->getbufline('$')[-1] . a:args->substitute('\\ ', ' ', 'g')
-  let winid = a:buf->bufwinid()
+  let winid = a:winid == '-1'? a:buf->bufwinid() : a:winid
   call win_execute(winid, 'norm G')
   call setbufline(a:buf, '$'->line(winid), text)
   call win_execute(winid, 'norm $')
@@ -182,21 +182,30 @@ function ninco#get_commands()
   return s:cmd
 endfunction
 
-function! ninco#_float(pos, insertmode=0) abort
+function! ninco#_find_vim_popup(buf) abort
   if has('nvim')
-    let buf = nvim_create_buf(v:false, v:true)
-    call nvim_buf_set_lines(buf, 0, -1, v:true, [])
-    let opts = #{relative: 'editor', anchor: 'NW', style: 'minimal'} 
-    let opts = opts->extend(a:pos)
-    let winid = nvim_open_win(buf, 0, opts)
-  else
-    let winid = popup_create([], {})
-    let pos = #{line: a:pos['row']+1, col: a:pos['col']+1,
-          \maxheight: a:pos['height'], maxwidth: a:pos['width'],
-          \minheight: a:pos['height'], minwidth: a:pos['width'],
-          \}
-    call popup_move(winid, pos)
+    return -1
   endif
+  for p in popup_list()
+    if winbufnr(p)->bufname() == a:buf
+      return p
+    endif
+  endfor
+  return -1
+endfunction
+
+function! ninco#_float(buf, pos, insertmode=0) abort
+  execute "badd ".a:buf
+  if has('nvim')
+    let opts = #{relative: 'editor', anchor: 'NW',
+          \style: 'minimal'}->extend(a:pos)
+    return nvim_open_win(a:buf->bufnr(), 0, opts)
+  endif
+  let winid = popup_create(a:buf->bufnr(), {})
+  let pos = #{line: a:pos['row']+1, col: a:pos['col']+1,
+        \maxheight: a:pos['height'], maxwidth: a:pos['width'],
+        \minheight: a:pos['height'], minwidth: a:pos['width']}
+  call popup_move(winid, pos)
   return winid
 endfunction
 
@@ -204,7 +213,7 @@ function! ninco#_float_close(winid) abort
   if has('nvim')
     call nvim_win_close(a:winid, v:true)
   else
-    call popup_close(a:winid))
+    call popup_close(a:winid)
   endif
 endfunction
 
