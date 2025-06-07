@@ -124,8 +124,8 @@ compress_style: string
 compress_prompt: string
     Prompt to apply compress.
     Default is 'Please summarize this talk log.'
-winid: string 
-    ID of window to put result.
+bufname: string 
+    Buffer name to write.
 log: Array<Array<object>>
     Log of thread to go back.
     This should be yielded by talk of AI and you.
@@ -145,7 +145,7 @@ Example
   let option = #{
     \name: 'ai',
     \key: 'hogehogefugafuga',
-    \winid: 'CHATGPT',
+    \bufname: 'CHATGPT',
     \max_length: 20,
     \compress_num: 5}
 <
@@ -190,7 +190,7 @@ ninco#delete(name)                                      |ninco#delete()|
 
 Delete an AI talk thread.
 
-ninco#tree_window(winid)                              |ninco#tree_window()|
+ninco#tree_window(bufname)                              |ninco#tree_window()|
 
 Write a tree of AI talk threads in tree style.
 It requires window id to write in.

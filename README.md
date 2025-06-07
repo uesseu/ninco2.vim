@@ -51,8 +51,8 @@ At first, write config. The dictionary below is all the options.
 - compress_prompt: string
     + Prompt to apply compress.
     + Default is 'Please summarize this talk log.'
-- winid: string
-    + ID of window
+- bufname: string
+    + Buffer name to write.
 - log: Array
     + Log of thread to go back
 - dry_run: boolean
