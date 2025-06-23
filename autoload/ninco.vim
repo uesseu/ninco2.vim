@@ -14,29 +14,38 @@ function! ninco#delete(name)
   return denops#request('ninco', 'delete', [a:name])
 endfunction
 
-function! ninco#tree_window(buf='AITREE')
-  let winid = a:buf->bufwinid()
+function! ninco#tree_window(option=#{bufname:'AITREE'})
+  let bufname = a:option['bufname']
+  let winid = bufname->bufwinid()
   if winid == -1
     return
   endif
   call win_execute(winid, 'silent! %d_')
   for line in denops#request('ninco', 'tree', [])->split("\n")
     call win_execute(winid, 'norm G')
-    call appendbufline(a:buf, '$'->line(a:buf->bufwinid())-1, line)
+    call appendbufline(bufname, '$'->line(bufname->bufwinid())-1, line)
   endfor
-  exec "au BufEnter ".a:buf." noremap <CR> :call ninco#_show_ai()<CR>"
-  exec "au BufLeave ".a:buf." noremap <CR> <CR>"
+  exec "au BufEnter ".bufname." noremap <CR> :call ninco#_show_ai()<CR>"
+  exec "au BufLeave ".bufname." noremap <CR> <CR>"
 endfunction
 
 function! ninco#get_param(name, param)
   return denops#request('ninco', 'get_param', [a:name, a:param])
 endfunction
 
-function! ninco#_show_in_window(ai, vertical=v:false)
+function! ninco#open(ai)
   let bufname = denops#request('ninco', 'get_param', [a:ai, 'bufname'])
   let bufname = bufname == '' ? a:ai : bufname
-  if bufname->bufwinid() == -1
-    execute (a:vertical ?'vsplit ':'split ').bufname
+  if bufwinid('^'.bufname.'$') == -1
+    let style = denops#request('ninco', 'get_param', [a:ai, 'window_style'])
+    if style == 'horizontal'
+      execute 'split '.bufname
+    elseif style == 'vertical'
+      execute 'vsplit '.bufname
+    elseif style == 'float'
+      call ninco#float(a:ai,
+            \denops#request('ninco', 'get_param', [a:ai, 'float_geometry']))
+    endif
     setlocal noswapfile
     setlocal wrap nonumber signcolumn=no
   endif
@@ -45,6 +54,7 @@ function! ninco#_show_in_window(ai, vertical=v:false)
   for line in denops#request('ninco', 'show', [a:ai])->split("\n")
     call appendbufline(bufname, '$'->line(bufname->bufwinid()), line)
   endfor
+  call win_execute(bufname->bufwinid(), 'norm G')
   return bufname
 endfunction
 
@@ -78,7 +88,7 @@ function ninco#config(name, options = #{})
   return a:name
 endfunction
 
-function ninco#set_bufname(name, buf='')
+function ninco#set_bufname(name)
   call ninco#config(a:name, #{bufname: a:name})
   return a:name
 endfunction
@@ -124,11 +134,11 @@ function! ninco#compress(buf)
 endfunction
 
 function! ninco#save_all(path, delete_key=v:true)
-  call denops#request('ninco', 'saveAll', [a:path, delete_key])
+  call denops#request('ninco', 'saveAll', [a:path, a:delete_key])
 endfunction
 
 function! ninco#save(name, path, delete_key=v:true)
-  call denops#request('ninco', 'save', [a:name, a:path, delete_key])
+  call denops#request('ninco', 'save', [a:name, a:path, a:delete_key])
 endfunction
 
 function! ninco#load(name, path)
@@ -152,11 +162,19 @@ function! ninco#_show_ai()
   let line = line('.')->getline()
   let start = match(line, "[A-Za-z]")
   let end = match(line, "[")
-  call ninco#_show_in_window(line[start:end-1])
+  call ninco#open(line[start:end-1])
 endfunction
 
-function! ninco#tree_split(vertical=v:true, buf='AITREE')
-  eval a:buf->ninco#split_window(a:vertical)->ninco#tree_window()
+function! ninco#open_tree(option=#{window_style:'vertical', bufname:'AITREE', float_geometry:#{row: 2, col: 20, height: 6, width: 50}})
+  let window_style = a:option['window_style']
+  let bufname = a:option['bufname']
+  if window_style == 'vertical'
+    call ninco#split_window(bufname, v:true)->ninco#tree_window()
+  elseif window_style == 'horizontal'
+    call ninco#split_window(bufname, v:false)->ninco#tree_window()
+  elseif window_style == 'float'
+    call ninco#float(bufname, option['float_geometry'])->ninco#tree_window()
+  endif
 endfunction
 
 let s:cmd = {}
@@ -194,7 +212,7 @@ function! ninco#find_vim_popup(buf) abort
   return -1
 endfunction
 
-function! ninco#float(buf, pos) abort
+function! ninco#float(buf, pos = #{row: 2, col: 20, height: 6, width: 50}) abort
   execute "badd ".a:buf
   if has('nvim')
     let opts = #{relative: 'editor', anchor: 'NW',
@@ -216,3 +234,28 @@ function! ninco#float_close(winid) abort
     call popup_close(a:winid)
   endif
 endfunction
+
+function! ninco#float_move(winid, new_pos) abort
+  if has('nvim')
+    call nvim_win_set_config(a:winid, {'relative': 'editor', 'row': a:new_pos['row'], 'col': a:new_pos['col']})
+  else
+    call popup_move(a:winid, {'line': a:new_pos['row']+1, 'col': a:new_pos['col']+1})
+  endif
+endfunction
+
+function! ninco#float_resize(winid, size) abort
+  if has('nvim')
+    call nvim_win_set_config(a:winid, {
+           \ 'width': a:size['width'],
+           \ 'height': a:size['height']
+           \ })
+  else
+    call popup_setconfig(a:winid, {
+          \ 'minwidth': a:size['width'],
+          \ 'maxwidth': a:size['width'],
+          \ 'minheight': a:size['height'],
+          \ 'maxheight': a:size['height']
+          \ })
+  endif
+endfunction
+
