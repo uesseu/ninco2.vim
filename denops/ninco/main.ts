@@ -31,6 +31,9 @@ class Order{
   bufname: string  // ID of window
   log: Array<Array<object>> // Log of thread to go back
   dry_run: boolean // Just for debug.
+  freeze: boolean // Do not go next
+  window_style: string
+  float_geometry: object
   parent: string // Name of parent thread
   children: Array<string> // Names of child threads
   pre_user_write: string
@@ -45,8 +48,10 @@ class Order{
     name = '', key = defaultKey, url = defaultUrl,
     model = defaultModel, command_args = [],
     max_length = 10, compress_num = 4, bufname = '',
-    dry_run = false, order = null, pre_user_write = '# ',
-    post_user_write = "\n--------------------\n",
+    dry_run = false, pre_user_write = '# ',
+    freeze = false, post_user_write = "\n--------------------\n",
+    window_style = 'horizontal',
+    float_geometry = {row: 2, col: 20, height: 6, width: 50},
     options = {}, compress_prompt = COMPRESS_PROMPT,
     callback = 'ninco#tree_window'){
     this.body = {
@@ -65,10 +70,13 @@ class Order{
     this.max_length = max_length
     this.compress_num = compress_num
     this.bufname = bufname
+    this.freeze = freeze
     this.log = [[]]
     this.dry_run = dry_run
     this.parent = ''
     this.children = []
+    this.window_style = window_style
+    this.float_geometry = float_geometry
     this.pre_user_write = pre_user_write
     this.post_user_write = post_user_write
     this.compress_prompt = compress_prompt
@@ -135,7 +143,13 @@ class Order{
 
   order(denops, text: string){
     this.putUser(text)
-    chatgpt(denops, this).then(x=>this.putAssistant(x))
+    chatgpt(denops, this).then((x)=>{
+      if(!this.freeze){
+        this.putAssistant(x)
+      } else {
+        this.body.messages.pop()
+      }
+    })
   }
 
   /**

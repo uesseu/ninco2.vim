@@ -139,6 +139,17 @@ parent: string
 children: Array<string>
     Names of child threads.
     This should be yielded by ninco2 automatically.
+freeze: boolean
+    If it is true, talk log will not be updated.
+    It is useful if you want to make many questions.
+    Default is {v:false}.
+window_style: string
+    Style for AI window.
+    It should be 'float', 'horizontal' or 'vertical'.
+    Default is 'horizontal'.
+float_geometry: Dictionary
+    Location and size of floating window.
+    Default is {row: 2, col: 20, height: 6, width: 50}.
 
 Example
 >
@@ -149,6 +160,7 @@ Example
     \max_length: 20,
     \compress_num: 5}
 <
+
 ==============================================================================
 Usage                    	 	                    |ninco-usage|
 
