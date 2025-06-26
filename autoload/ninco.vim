@@ -114,6 +114,7 @@ function! ninco#copy(source, dest='')
 endfunction
 
 function! ninco#run(context, order='%s', ...)
+  echo a:order
   let order = 'printf'->call([a:order]+ a:000)
   call denops#request('ninco', 'order', [a:context, order])
   call ninco#compress(a:context)
@@ -121,10 +122,10 @@ function! ninco#run(context, order='%s', ...)
 endfunction
 
 function! ninco#put_window(args, buf, winid = '-1', normal = v:false) abort
-  let text = a:buf->getbufline('$')[-1] . a:args->substitute('\\ ', ' ', 'g')
   let winid = a:winid == '-1'? a:buf->bufwinid() : a:winid
-  call win_execute(winid, 'norm G')
-  call setbufline(a:buf, '$'->line(winid), text)
+  let text = a:buf->getbufline('.'->line(winid))[-1] . a:args->substitute('\\ ', ' ', 'g')
+  "call win_execute(winid, 'norm G')
+  call setbufline(a:buf, '.'->line(winid), text)
   call win_execute(winid, 'norm $')
 endfunction
 
@@ -181,10 +182,11 @@ let s:cmd = {}
 
 function ninco#command_wrapper(...)
   let args = a:000
-  if a:000->len() == 1
+  if a:000->len() == 1 || a:000[1]->match('%s') != -1
     norm o
     let args = args + [ninco#get_selection()]
   endif
+  echo args
   call call('ninco#run', args)
 endfunction
 

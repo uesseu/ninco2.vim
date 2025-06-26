@@ -16,6 +16,7 @@ function copy(x){
  */
 class Order{
   body // The body of messages.
+  type: string // ['chatgpt', 'ollama']
   name: string // Name of thread
   command: string // Command name and arguments
   command_args: Array<string>
@@ -45,6 +46,7 @@ class Order{
    * @param {string} model - Name of model. (Ex. "gpt-3.5-turbo")
    */
   constructor(print = true, repeat = true, command = '',
+    type = 'chatgpt',
     name = '', key = defaultKey, url = defaultUrl,
     model = defaultModel, command_args = [],
     max_length = 10, compress_num = 4, bufname = '',
@@ -59,8 +61,10 @@ class Order{
       messages: [],
       stream: true,
     }
+    this.model = model
     this.body = {...this.body, ...options}
     this.name = name
+    this.type = type
     this.print = print
     this.repeat = repeat
     this.command = command
@@ -272,6 +276,7 @@ class Order{
    * @returns {null} - JSON string for openai.
    */
   receive(){
+    this.body.model = this.model
     return fetch(this.url, {
       method: "POST",
       headers: {
@@ -314,7 +319,7 @@ function putString(denops: Denops, text: string, buf: string){
   })
 }
 
-function parseResponse(response: any){
+function parseResponseChatgpt(response: any){
   // The worst boiler plate of this software.
   // Code tries to parse something like json bun not json.
   if (response.trim()[0] === "{"){
@@ -373,7 +378,8 @@ async function chatgpt(denops: Denops, order: Order){
   if (order.repeat){
     putString(
       denops,
-      order.pre_user_write
+      "\n"
+      + order.pre_user_write
       + order.body.messages.slice(-1)[0].content
       + order.post_user_write,
       order.bufname)
@@ -381,7 +387,7 @@ async function chatgpt(denops: Denops, order: Order){
   if (order.dry_run){
     if (order.print) putString(
       denops,
-      order.body.messages.slice(-1)[0].content + "\n",
+      "\n" + order.body.messages.slice(-1)[0].content + "\n",
       order.bufname
     )
     if (order.command !== ""){
@@ -396,8 +402,13 @@ async function chatgpt(denops: Denops, order: Order){
     // Receive response of AI
     let resp = await order.receive()
     for await (const chunk of resp.body){
-      const data = new TextDecoder().decode(chunk)
-        .split("\n\n").map(parseResponse)
+      let data
+      if (order.type == 'chatgpt'){
+        data = new TextDecoder().decode(chunk)
+          .split("\n\n").map(parseResponseChatgpt)
+      } else if (order.type == 'ollama') {
+        data = [JSON.parse(new TextDecoder().decode(chunk))['message']['content']]
+      }
       if (order.print) putString(denops, data.join(""), order.bufname)
       if (order.command !== "")
         writer.write(new TextEncoder().encode(data.join('')))
