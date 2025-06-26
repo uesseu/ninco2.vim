@@ -92,6 +92,8 @@ name: string
     Name of thread. This may be modified when you use it.
     It can be empty if you do not want to fill.
     Default is 'ai'.
+type: string
+    Type of service. It is 'chatgpt' or 'ollama' now.
 command: string
     Shell command.
     Ninco can put result of talk into shell command through {stdin}.

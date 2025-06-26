@@ -28,6 +28,8 @@ At first, write config. The dictionary below is all the options.
 
 - name: string
     + Name of thread
+- type: string
+    + Type of service. 'chatgpt' of 'ollama'
 - command: string
     + Command name to put to shell
 - command_args: Array<string>
