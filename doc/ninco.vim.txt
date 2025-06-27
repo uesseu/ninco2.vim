@@ -6,20 +6,20 @@ License: MIT license
 ==============================================================================
 CONTENTS                                                        *slide-contents*
 
-Introduction		|ninco2-introduction|
-Requirements  	 	|ninco2-requirements|
-Easy way  	 	|ninco2-easy|
-Tree style  	 	|ninco2-tree|
-Configuration  	 	|ninco2-configuration|
-Usage	  	 	|ninco2-usage|
-Openai compatible API  	|ninco2-api|
+Introduction		|ninco-introduction|
+Requirements  	 	|ninco-requirements|
+Easy way  	 	|ninco-easy|
+Tree style  	 	|ninco-tree|
+Configuration  	 	|ninco-configuration|
+Usage	  	 	|ninco-usage|
+Openai compatible API  	|ninco-api|
 
 ==============================================================================
 INTRODUCTION                                                *ninco-introduction*
-ChatGPT compatible tree style client for vim and neovim,
+ChatGPT and ollama compatible tree style client for vim and neovim,
 written in typescript by denops.
-It depends on openai compatible web api.
-There is a chatgpt compatible interface of LLAMA and so you can use it.
+It depends on openai and ollama compatible web api.
+Gemini has also ChatGPT compatible api.
 
 It is still under developping and destructive change may be done.
 It is just for my daily life, work and hobby.
@@ -34,7 +34,7 @@ However, I use it in daily life and it is useful for me. It can...
 - Almost all the commands can work by method chain
 
 ==============================================================================
-Requirements                                    *ninco-requirements*
+Requirements                                                *ninco-requirements*
 
 Vim or neovim, Denops are needed.
 If you use service of openai, API key of openai is also needed.
@@ -42,7 +42,7 @@ About library, it depends only on denops and so please see
 the requirements of denops. Denops cannot work on old vim or neovim.
 
 ==============================================================================
-Easy way                                               |ninco-easy|
+Easy way                                                            *ninco-easy*
 
 At first make configuration dictionary.
 In the case of openai, api key is required.
@@ -62,7 +62,7 @@ visual selection becomes the argument.
 This is the most easy way. But easy way is not always good way.
 
 ==============================================================================
-Tree    	 	                    |ninco-tree|
+Tree    	 	                    *ninco-tree*
 
 Tree style UI is one of the feature of ninco.
 >
@@ -73,7 +73,7 @@ Tree style UI is one of the feature of ninco.
 <
 
 ==============================================================================
-Configuration  	 	                    |ninco-configuration|
+Configuration  	 	                    *ninco-configuration*
 
 Ninco2 was developped as software easy to configure.
 This can be configured by dictionary.
@@ -164,9 +164,9 @@ Example
 <
 
 ==============================================================================
-Usage                    	 	                    |ninco-usage|
+Usage                    	 	                    *ninco-usage*
 
-ninco#new(options=#{}, name='ai')                            |ninco#new()|
+ninco#new(options=#{}, name='ai')                            *ninco#new()*
 
 Makes a new AI talk thread. You should put options.
 Default dictionary has no openai api_key or url of your local server.
@@ -177,7 +177,7 @@ Example
   let ai = #{key: 'fugafugahogehoge'}->ninco#new()
 <
 
-ninco#make_command(name)                           |ninco#make_command()|
+ninco#make_command(name)                           *ninco#make_command()*
 
 Makes a command from the name of AI talk thread.
 Be careful, it does not check name of commands.
@@ -187,7 +187,7 @@ Example
   ninco#new(#{key: 'fugafugahogehoge'})->ninco#make_command()
 <
 
-ninco#run(name, prompts, ...)                           |ninco#run()|
+ninco#run(name, prompts, ...)                           *ninco#run()*
 
 Example
 >
@@ -196,40 +196,40 @@ Example
 <
 Function to talk with AI. This is the most important function of ninco.
 
-ninco#get_selection()                               |ninco#get_selection()|
+ninco#get_selection()                               *ninco#get_selection()*
 
 Get visual selected text.
 
-ninco#delete(name)                                      |ninco#delete()|
+ninco#delete(name)                                      *ninco#delete()*
 
 Delete an AI talk thread.
 
-ninco#tree_window(bufname)                              |ninco#tree_window()|
+ninco#tree_window(bufname)                              *ninco#tree_window()*
 
 Write a tree of AI talk threads in tree style.
 It requires window id to write in.
 
-ninco#get_param(name, param)                           |ninco#get_param()|
+ninco#get_param(name, param)                           *ninco#get_param()*
 
 Get parameter of an AI talk thread.
 Returns name.
 
-ninco#config(name, param)                           |ninco#config()|
+ninco#config(name, param)                           *ninco#config()*
 
 Rewrite config of AI talk thread.
 Returns name.
 
-ninco#option(name, param)                           |ninco#option()|
+ninco#option(name, param)                           *ninco#option()*
 
 Rewrite deeper configuration of AI.
 For example, temperature.
 Returns name.
 
-ninco#status(name)                           |ninco#status()|
+ninco#status(name)                           *ninco#status()*
 
 Show whole status of an AI talk thread.
 
-ninco#goback(name, num)                      |ninco#goback()|
+ninco#goback(name, num)                      *ninco#goback()*
 
 Let one AI talk thread num before.
 You and AI talk together and so one conversation
@@ -240,7 +240,7 @@ Example
   call ninco#goback('ai', 2)
 <
 
-ninco#copy(source, dest='')                     |ninco#copy()|
+ninco#copy(source, dest='')                     *ninco#copy()*
 
 Copy AI talk thread. source is name of AI talk thread.
 It renames the name if dest is '' or is same as source.
@@ -249,35 +249,35 @@ Example
 >
   call ninco#copy('ai')->ninco#goback(2)
 <
-ninco#put_window(args, winname)                       |ninco#put_window()|
+ninco#put_window(args, winname)                       *ninco#put_window()*
 
 Put text into other window.
 
-ninco#compress(name)                               |ninco#compress()|
+ninco#compress(name)                               *ninco#compress()*
 
 Compress AI talk thread.
 
-ninco#save_all(path, delete_key=v:true)            |ninco#save_all()|
+ninco#save_all(path, delete_key=v:true)            *ninco#save_all()*
 
 Save all the AI talk threads as a json file.
 
-ninco#save(name, path, delete_key=v:true)          |ninco#save()|
+ninco#save(name, path, delete_key=v:true)          *ninco#save()*
 
 Save an AI talk thread as a json file.
 
-ninco#load(name, path)                             |ninco#load()|
+ninco#load(name, path)                             *ninco#load()*
 
 Load an AI talk thread from a json file.
 
-ninco#load_all(path)                               |ninco#load_all()|
+ninco#load_all(path)                               *ninco#load_all()*
 
 Load all the AI talk threads from a json file.
 
-ninco#list_talk()                                  |ninco#list_talk()|
+ninco#list_talk()                                  *ninco#list_talk()*
 
 Returns AI talk thread names.
 
-ninco#get_commands()                                  |ninco#get_commands()|
+ninco#get_commands()                                  *ninco#get_commands()*
 
 Returns dictionary of AI command and the internal names.
 
