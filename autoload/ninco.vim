@@ -261,3 +261,9 @@ function! ninco#float_resize(winid, size) abort
   endif
 endfunction
 
+let ninco#url = #{
+      \openai: "https://api.openai.com/v1/chat/completions",
+      \ollama: "http://localhost:11434/api/chat", 
+      \webui: "http://127.0.0.1:8000/v1/chat/completions",
+      \gemini: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+      \}
