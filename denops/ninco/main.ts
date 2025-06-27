@@ -4,7 +4,6 @@ let defaultKey = ""
 let defaultModel = "gpt-4.1-nano"
 let defaultUrl = "https://api.openai.com/v1/chat/completions"
 const COMPRESS_PROMPT = 'Please summarize this talk log.'
-//let url = "http://127.0.0.1:8000/v1/chat/completions"
 
 function copy(x){
   return JSON.parse(JSON.stringify(x))
@@ -148,11 +147,7 @@ class Order{
   order(denops, text: string){
     this.putUser(text)
     chatgpt(denops, this).then((x)=>{
-      if(!this.freeze){
-        this.putAssistant(x)
-      } else {
-        this.body.messages.pop()
-      }
+      if(!this.freeze) this.putAssistant(x)
     })
   }
 
@@ -398,7 +393,7 @@ async function chatgpt(denops: Denops, order: Order){
       await process.stdin.close();
     }
     allData += order.body.messages.slice(-1)[0].content
-    } else {
+  } else {
     // Receive response of AI
     let resp = await order.receive()
     for await (const chunk of resp.body){
@@ -407,7 +402,9 @@ async function chatgpt(denops: Denops, order: Order){
         data = new TextDecoder().decode(chunk)
           .split("\n\n").map(parseResponseChatgpt)
       } else if (order.type == 'ollama') {
-        data = [JSON.parse(new TextDecoder().decode(chunk))['message']['content']]
+        data = [
+          JSON.parse(new TextDecoder().decode(chunk))['message']['content']
+        ]
       }
       if (order.print) putString(denops, data.join(""), order.bufname)
       if (order.command !== "")
@@ -420,6 +417,7 @@ async function chatgpt(denops: Denops, order: Order){
     await process.stdin.close();
   }
   if (order.print) putString(denops, "\n", order.bufname)
+  if (order.freeze) order.body.messages.pop()
   denops.call(order.callback)
   return allData
 }
