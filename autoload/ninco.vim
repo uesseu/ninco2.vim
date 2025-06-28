@@ -135,11 +135,13 @@ function! ninco#compress(buf)
 endfunction
 
 function! ninco#save_all(path, delete_key=v:true)
-  call denops#request('ninco', 'saveAll', [a:path, a:delete_key])
+  let path = isabsolutepath(a:path)? a:path : getcwd().'/'.a:path
+  call denops#request('ninco', 'saveAll', [path, a:delete_key])
 endfunction
 
 function! ninco#save(name, path, delete_key=v:true)
-  call denops#request('ninco', 'save', [a:name, a:path, a:delete_key])
+  let path = isabsolutepath(a:path)? a:path : getcwd().'/'.a:path
+  call denops#request('ninco', 'save', [a:name, path, a:delete_key])
 endfunction
 
 function! ninco#load(name, path)
