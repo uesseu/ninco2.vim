@@ -188,119 +188,159 @@ Usage                    	 	                    *ninco-usage*
 
 ninco#new(options=#{}, name='ai')                            *ninco#new()*
 
-Makes a new AI talk thread. You should put options.
-Default dictionary has no openai api_key or url of your local server.
-Returns the name of talk thread.
+        Makes a new AI talk thread. You should put options.
+        Default dictionary has no openai api_key or url of your local server.
+        Returns the name of talk thread.
 
-Example
+        Example
 >
-  let ai = #{key: 'fugafugahogehoge'}->ninco#new()
+        let ai = #{key: 'fugafugahogehoge'}->ninco#new()
 <
 
 ninco#make_command(name)                           *ninco#make_command()*
 
-Makes a command from the name of AI talk thread.
-Be careful, it does not check name of commands.
+        Makes a command from the name of AI talk thread.
+        Be careful, it does not check name of commands.
 
-Example
+        Example
 >
-  ninco#new(#{key: 'fugafugahogehoge'})->ninco#make_command()
+        ninco#new(#{key: 'fugafugahogehoge'})->ninco#make_command()
 <
 
 ninco#run(name, prompts, ...)                           *ninco#run()*
 
-Example
+        Example
 >
-  let ai = #{key: 'fugafugahogehoge'}->ninco#new()
-  call ninco#run(ai, 'hello')
+        let ai = #{key: 'fugafugahogehoge'}->ninco#new()
+        call ninco#run(ai, 'hello')
 <
-Function to talk with AI. This is the most important function of ninco.
+        Function to talk with AI. This is the most important function of ninco.
 
 ninco#get_selection()                               *ninco#get_selection()*
 
-Get visual selected text.
+        Get visual selected text.
+
+	Example
+>
+        call ninco#run(ai, ninco#get_selection())
+<
 
 ninco#delete(name)                                      *ninco#delete()*
 
-Delete an AI talk thread.
+        Delete an AI talk thread.
 
 ninco#tree_window(bufname)                              *ninco#tree_window()*
 
-Write a tree of AI talk threads in tree style.
-It requires window id to write in.
+        Write a tree of AI talk threads in tree style.
+        It requires window id to write in.
+	Returns nothing.
 
 ninco#get_param(name, param)                           *ninco#get_param()*
 
-Get parameter of an AI talk thread.
-Returns name.
+        Get parameter of an AI talk thread.
 
 ninco#config(name, param)                                 *ninco#config()*
 
-Rewrite config of AI talk thread.
-Returns name.
+        Rewrite config of AI talk thread. Returns name.
+
+	Example
+>
+        let ai = ninco#new('ai')->ninco#config(#{freeze: v:true}) 
+<
 
 ninco#option(name, param)                                 *ninco#option()*
 
-Rewrite deeper configuration of AI.
-For example, temperature.
-Returns name.
+        Rewrite deeper configuration of AI.
+        For example, temperature. Returns ai name.
 
 ninco#status(name)                                      *ninco#status()*
 
-Show whole status of an AI talk thread.
+        Show whole status of an AI talk thread.
 
 ninco#goback(name, num)                                 *ninco#goback()*
 
-Let one AI talk thread num before.
-You and AI talk together and so one conversation
-consists of two texts. And so, num is 2 in daily life.
+        Let one AI talk thread num before.
+        You and AI talk together and so one conversation
+        consists of two texts. And so, num is 2 in daily life.
+	Returns ai name.
 
-Example
+        Example
 >
-  call ninco#goback('ai', 2)
+        call ninco#goback('ai', 2)
 <
 
 ninco#copy(source, dest='')                                *ninco#copy()*
 
-Copy AI talk thread. source is name of AI talk thread.
-It renames the name if dest is '' or is same as source.
+        Copy AI talk thread. source is name of AI talk thread.
+        It renames the name if dest is '' or is same as source.
 
-Example
+        Example
 >
-  call ninco#copy('ai')->ninco#goback(2)
+        let ai2 = 'ai'->ninco#copy('ai2')->ninco#goback(2)
 <
 ninco#put_window(args, winname)                       *ninco#put_window()*
 
-Put text into other window.
+        args: 
+        Put text into other window.
 
 ninco#compress(name)                                  *ninco#compress()*
 
-Compress AI talk thread.
+        Compress AI talk thread.
 
 ninco#save_all(path, delete_key=v:true)               *ninco#save_all()*
 
-Save all the AI talk threads as a json file.
+        Save all the AI talk threads as a json file.
 
 ninco#save(name, path, delete_key=v:true)                *ninco#save()*
 
-Save an AI talk thread as a json file.
+        Save an AI talk thread as a json file.
 
 ninco#load(name, path)                                   *ninco#load()*
 
-Load an AI talk thread from a json file.
+        Load an AI talk thread from a json file.
 
 ninco#load_all(path)                                   *ninco#load_all()*
 
-Load all the AI talk threads from a json file.
+        Load all the AI talk threads from a json file.
 
 ninco#list_talk()                                      *ninco#list_talk()*
 
-Returns AI talk thread names.
+        Returns AI talk thread names.
 
 ninco#get_commands()                                  *ninco#get_commands()*
 
-Returns dictionary of AI command and the internal names.
+        Returns dictionary of AI command and the internal names.
 
+ninco#float(buf, pos = #{row: 2, col: 20, height: 6, width: 50}) *ninco#float()*
+
+        buf: string
+            Buffer name.
+        pos:
+            Position of floating window.
+
+        Open a floating window to show ai. It returns window id.
+        Window id is needed to close or move window.
+>
+	#{row: 4, col: 4, width: 30, height: 10}
+<
+
+ninco#float_close(winid)                                *ninco#float_close()*
+
+        Close a floating window. 
+
+ninco#float_move(winid, pos)                           *ninco#float_close()*
+
+        buf: string
+            Buffer name.
+        pos:
+            Position of floating window.
+
+        Move or resize a floating window.
+	pos should be dictionary like below.
+        Example
+>
+	#{row: 4, col: 4, width: 30, height: 10}
+<
 ==============================================================================
 Local server                                               *ninco-local*
 If you want to use local server, you need not use api_key and model.
