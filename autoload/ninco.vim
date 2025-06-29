@@ -114,7 +114,6 @@ function! ninco#copy(source, dest='')
 endfunction
 
 function! ninco#run(context, order='%s', ...)
-  echo a:order
   let order = 'printf'->call([a:order]+ a:000)
   call denops#request('ninco', 'order', [a:context, order])
   call ninco#compress(a:context)
@@ -188,7 +187,6 @@ function ninco#command_wrapper(...)
     norm o
     let args = args + [ninco#get_selection()]
   endif
-  echo args
   call call('ninco#run', args)
 endfunction
 
@@ -241,25 +239,23 @@ endfunction
 
 function! ninco#float_move(winid, new_pos) abort
   if has('nvim')
-    call nvim_win_set_config(a:winid, {'relative': 'editor', 'row': a:new_pos['row'], 'col': a:new_pos['col']})
+    call nvim_win_set_config(
+          \a:winid,
+          \#{relative: 'editor',
+          \  row: a:new_pos['row'],
+          \  col: a:new_pos['col'],
+          \  width: a:new_pos['width'],
+          \  height: a:new_pos['height']
+          \})
   else
-    call popup_move(a:winid, {'line': a:new_pos['row']+1, 'col': a:new_pos['col']+1})
-  endif
-endfunction
-
-function! ninco#float_resize(winid, size) abort
-  if has('nvim')
-    call nvim_win_set_config(a:winid, {
-           \ 'width': a:size['width'],
-           \ 'height': a:size['height']
-           \ })
-  else
-    call popup_setconfig(a:winid, {
-          \ 'minwidth': a:size['width'],
-          \ 'maxwidth': a:size['width'],
-          \ 'minheight': a:size['height'],
-          \ 'maxheight': a:size['height']
-          \ })
+    call popup_move(a:winid,
+          \#{line: a:new_pos['row']+1,
+          \  col: a:new_pos['col']+1,
+          \  minwidth: a:new_pos['width'],
+          \  maxwidth: a:new_pos['width'],
+          \  minheight: a:new_pos['height'],
+          \  maxheight: a:new_pos['height']
+          \})
   endif
 endfunction
 
