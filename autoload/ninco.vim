@@ -202,7 +202,7 @@ function ninco#get_commands()
   return s:cmd
 endfunction
 
-function! ninco#find_vim_popup(buf) abort
+function! ninco#_find_vim_popup(buf) abort
   if has('nvim')
     return -1
   endif
@@ -212,6 +212,10 @@ function! ninco#find_vim_popup(buf) abort
     endif
   endfor
   return -1
+endfunction
+
+function! ninco#web_search(name, query)
+  call denops#request('ninco', 'webSearch', [a:name, a:query])
 endfunction
 
 function! ninco#float(buf, pos = #{row: 2, col: 20, height: 6, width: 50}) abort
@@ -235,6 +239,10 @@ function! ninco#float_close(winid) abort
   else
     call popup_close(a:winid)
   endif
+endfunction
+
+function! ninco#divide(name, text) abort
+  return denops#request('ninco', 'divideTask', [a:name, a:text])
 endfunction
 
 function! ninco#float_move(winid, new_pos) abort
@@ -265,3 +273,5 @@ let ninco#url = #{
       \webui: "http://127.0.0.1:8000/v1/chat/completions",
       \gemini: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
       \}
+
+

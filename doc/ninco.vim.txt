@@ -167,6 +167,8 @@ window_style: string
 float_geometry: Dictionary
     Location and size of floating window.
     Default is {row: 2, col: 20, height: 6, width: 50}.
+timeout: Number
+    Timeout in milisecond.
 
 Example
 >

@@ -217,9 +217,7 @@ call ninco#option('chat', #{})
 
 
 # TODO
-- Documentation file of vim
 - vscode version
-- Gemini
 
 # Q and A
 
