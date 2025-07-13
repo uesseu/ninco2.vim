@@ -14,19 +14,18 @@ function! ninco#delete(name)
   return denops#request('ninco', 'delete', [a:name])
 endfunction
 
-function! ninco#tree_window(option=#{bufname:'AITREE'})
-  let bufname = a:option['bufname']
-  let winid = bufname->bufwinid()
+function! ninco#tree_window(bufname = 'AITREE')
+  let winid = a:bufname->bufwinid()
   if winid == -1
     return
   endif
   call win_execute(winid, 'silent! %d_')
   for line in denops#request('ninco', 'tree', [])->split("\n")
     call win_execute(winid, 'norm G')
-    call appendbufline(bufname, '$'->line(bufname->bufwinid())-1, line)
+    call appendbufline(a:bufname, '$'->line(a:bufname->bufwinid())-1, line)
   endfor
-  exec "au BufEnter ".bufname." noremap <CR> :call ninco#_show_ai()<CR>"
-  exec "au BufLeave ".bufname." noremap <CR> <CR>"
+  exec "au BufEnter ".a:bufname." noremap <CR> :call ninco#_show_ai()<CR>"
+  exec "au BufLeave ".a:bufname." noremap <CR> <CR>"
 endfunction
 
 function! ninco#get_param(name, param)
