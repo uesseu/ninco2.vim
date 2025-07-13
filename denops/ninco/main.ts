@@ -166,7 +166,7 @@ export async function main(denops: Denops): Promise<void> {
         x=> {
           let option = JSON.parse(x)
           name = name === '' ? nextId(option.name) : nextId(name)
-          globalOrders[name] = name
+          globalOrders[name] = (new Order()).setParameter(option)
         }
       )
     },
@@ -186,7 +186,15 @@ export async function main(denops: Denops): Promise<void> {
     },
 
     async loadAll(path: string): Promise<void>{
-      Deno.readTextFile(path).then(x=> globalOrders = JSON.parse(x))
+      Deno.readTextFile(path).then(
+        x=>{
+          let options = JSON.parse(x)
+          console.log(options)
+          for (let key in options){
+            globalOrders[options[key].name] = (new Order()).setParameter(options[key])
+          }
+        }
+      )
     },
 
     async order(name, text){
