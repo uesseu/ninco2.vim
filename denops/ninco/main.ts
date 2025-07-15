@@ -3,8 +3,7 @@ import {Order, copy} from './order.ts'
 import {VimWriter} from './writer.ts'
 import {processChunk} from './response_parser.ts'
 import {duckduckgo, webSearch, readHTML} from './websearch.ts'
-
-
+import {divideTaskTest} from './team.ts'
 
 /* Global object to talk with chatGPT. */
 let globalOrders = {}
@@ -38,35 +37,6 @@ function nextId(id: string){
     }
   }
   return id
-}
-
-
-async function divideTask(order, text, div=5, websearch=false){
-  const whole = order.copyChild(false).putUser(
-    `# Client's order
-${text}
-# Task
-We received the order from the client. Divide the task from the client and write a perfect instruction manuals for our team. Provide concrete plan and detailed specification of them. The order from the client is the most important and we should respect the order serisously.
-# Requirement
-The task must be done by one shot. Do not tell your teammates the way to achieve. Just tell them the detailed requirements.
-Tell your each teammates the language to use.
-# Number of tasks
-The task must be divided into ${div} pieces.`
-  )
-  let manual = await whole.getText()
-  whole.putAssistant(manual)
-  let tasks: Array<fetch> = []
-  let fnames: Array<fetch> = []
-  for (let i = 0; i < div; i+=1) {
-    let ord = await whole.copyChild(false).putUser(`Extract the ${i+1}th section of instraction manual`).getText()
-    tasks.push(
-      whole.copyChild().reset().putUser(ord).putUser(`Write the result of the instruction manual perfectly. Just write the result, not letter for editor. You should write the final batch of submission.`).getText()
-    )
-    fnames.push(
-      whole.copyChild(false).putUser(`Please make filename of result of the ${i+1}th process. Do not explain details, just write the filename. The file must be able to edited by a text editor.`).getText()
-    )
-  }
-  return {tasks: tasks, fnames:fnames}
 }
 
 export async function main(denops: Denops): Promise<void> {
@@ -106,11 +76,11 @@ export async function main(denops: Denops): Promise<void> {
       globalOrders[name].setOptions(options)
     },
 
-    tree(): string{
+    tree(root = globalOrders): string{
       let result = ''
       for (let name in globalOrders){
         if (globalOrders[name].parent === ''){
-          result += globalOrders[name].showTree()
+          result += globalOrders[name].showTree(root)
         }
       }
       return result
@@ -166,7 +136,7 @@ export async function main(denops: Denops): Promise<void> {
         x=> {
           let option = JSON.parse(x)
           name = name === '' ? nextId(option.name) : nextId(name)
-          globalOrders[name] = (new Order()).setParameter(option)
+          globalOrders[name] = (new Order()).setParameter(option).load(option)
         }
       )
     },
@@ -189,9 +159,9 @@ export async function main(denops: Denops): Promise<void> {
       Deno.readTextFile(path).then(
         x=>{
           let options = JSON.parse(x)
-          console.log(options)
           for (let key in options){
-            globalOrders[options[key].name] = (new Order()).setParameter(options[key])
+            globalOrders[options[key].name] =
+              (new Order()).setParameter(options[key]).load(options[key])
           }
         }
       )
@@ -241,8 +211,8 @@ export async function main(denops: Denops): Promise<void> {
       return isNeedToSearch(globalOrders[name], text)
     },
 
-    async divideTask(name, text, div=5){
-      let tasks = await divideTask(globalOrders[name], text, div=5)
+    async divideTaskTest(name, text, div=5){
+      let tasks = await divideTaskTest(globalOrders[name], text, div=5)
       for (let n = 0; n < div; n++){
         let fname = (await tasks.fnames[n])
           .trim()

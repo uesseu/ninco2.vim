@@ -103,8 +103,14 @@ export class Order{
   return this
   }
 
+  load(data: any){
+    this.body = copy(data.body)
+    return this
+  }
+
   setOptions(param: any){
     this.body= {...this.body, ...param}
+    return this
   }
   /**
    * Put system parameter to the last of message.
@@ -189,10 +195,11 @@ export class Order{
     for (const n in this){
       order[n] = copy(this[n])
     }
+    order.children = []
     return order
   }
 
-  showTree(n=0){
+  showTree(root, n=0){
     const message = this.body.messages
     const lastMessage = message.length >= 2 ? message[message.length - 2].content : ''
     let lognum = 0
@@ -202,7 +209,7 @@ export class Order{
     }
     let result = `${' '.repeat(n*2)}${this.name}[${lognum}]: ${lastMessage.slice(0, 20)}...\n`
     for (let c in this.children)
-      result += globalOrders[this.children[c]].showTree(n + 1)
+      result += root[this.children[c]].showTree(root, n + 1)
     return result
   }
 
@@ -385,5 +392,4 @@ export class Order{
     if (this.freeze) this.body.messages.pop()
     return allData
   }
-
 }
