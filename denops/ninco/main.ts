@@ -3,7 +3,7 @@ import {Order, copy} from './order.ts'
 import {VimWriter} from './writer.ts'
 import {processChunk} from './response_parser.ts'
 import {duckduckgo, webSearch, readHTML} from './websearch.ts'
-import {divideTaskTest} from './team.ts'
+import {divideTaskTest, Team} from './team.ts'
 
 /* Global object to talk with chatGPT. */
 let globalOrders = {}
@@ -51,6 +51,7 @@ export async function main(denops: Denops): Promise<void> {
       options.name = name
       globalOrders[name] = new Order()
       globalOrders[name].setParameter(options)
+      globalOrders[name].setWriter(new VimWriter(denops, globalOrders[name].filename))
       return name
     },
 
@@ -136,7 +137,7 @@ export async function main(denops: Denops): Promise<void> {
         x=> {
           let option = JSON.parse(x)
           name = name === '' ? nextId(option.name) : nextId(name)
-          globalOrders[name] = (new Order()).setParameter(option).load(option)
+          globalOrders[name] = (new Order()).setWriter(new VimWriter(denops, globalOrders[name].filename)).setParameter(option).load(option)
         }
       )
     },
@@ -161,16 +162,22 @@ export async function main(denops: Denops): Promise<void> {
           let options = JSON.parse(x)
           for (let key in options){
             globalOrders[options[key].name] =
-              (new Order()).setParameter(options[key]).load(options[key])
+              (new Order()).setWriter(
+                new VimWriter(denops, globalOrders[name].filename)
+            ).setParameter(options[key]).load(options[key])
           }
         }
       )
     },
 
-    async order(name, text){
+    async run(name, text, command='talk'){
       const order = globalOrders[name]
-      const writer = new VimWriter(denops, order)
-      order.order(writer, text)
+      order.talk(text, command)
+    },
+
+    async reserve(name, texts){
+      const order = globalOrders[name]
+      order.reserve(texts)
     },
 
     async compress(name): Promise<void>{
@@ -180,6 +187,7 @@ export async function main(denops: Denops): Promise<void> {
     copy(name: string, new_name: string = ''): string{
       if (new_name === '') new_name = nextId(name)
       globalOrders[new_name] = globalOrders[name].copy()
+      globalOrders[new_name].setWriter(new VimWriter(denops, globalOrders[name].filename))
       globalOrders[new_name].parent = name
       globalOrders[new_name].name = new_name
       globalOrders[name].children.push(new_name)
@@ -203,33 +211,14 @@ export async function main(denops: Denops): Promise<void> {
       return result
     },
 
-    webSearch(name, query, start, num): Promise<void>{
-      webSearch(globalOrders[name], query, start, num)
+    webSearch(name, query, num, compressPrompt, stringNum): Promise<void>{
+      globalOrders[name].webSearch(query, 1, num, compressPrompt, stringNum)
     },
 
-    isNeedToSearch(name, text){
-      return isNeedToSearch(globalOrders[name], text)
+    async test(name, command, filename): Promise<void>{
+      globalOrders[name].test(command, await denops.call('getbufline', name, 0, '$'), name)
     },
 
-    async divideTaskTest(name, text, div=5){
-      let tasks = await divideTaskTest(globalOrders[name], text, div=5)
-      for (let n = 0; n < div; n++){
-        let fname = (await tasks.fnames[n])
-          .trim()
-          .replace(/`/g, '')
-          .replace(/'/g, '')
-          .replace(/"/g, '')
-          .replace(/\n/g, '')
-        console.log(fname)
-        let bufnr = await denops.eval(`bufadd('${fname}')`)
-        console.log(bufnr)
-        denops.call('bufload', bufnr)
-        denops.call(
-          'setbufline',
-          bufnr, 1, (await tasks.tasks[n]).split('\n')
-        )
-        denops.call('setbufvar', bufnr, '&buflisted', 1)
-      }
-    }
-  };
-};
+
+  }
+}

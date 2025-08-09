@@ -1,13 +1,52 @@
-import {VimWriter} from './writer.ts'
+import {VimWriter, Writer} from './writer.ts'
 import {parseResponseChatgpt, processChunk} from './response_parser.ts'
+import {Agent, defaultAgent, AgentFormat, defaultOrder} from './defaults.ts'
+import {duckduckgo, readHTML} from './websearch.ts'
 
-let defaultKey = ""
-let defaultModel = "gpt-4.1-nano"
-let defaultUrl = "https://api.openai.com/v1/chat/completions"
 const COMPRESS_PROMPT = 'Please summarize this talk log.'
 
 export function copy(x){
   return JSON.parse(JSON.stringify(x))
+}
+
+export class Team{
+  receptionist: Order // Detect what user want
+  programmer: Order  // Just a programmer
+  manager: Order  // Manage files
+  runner: Order  // Run command in safe way
+}
+
+function extractJson(x){
+  let start = 0
+  let end = x.length - 1
+  while(x[start] != '{'){
+    if (start === x.length) return x
+    start++ 
+  }
+  while(x[end] != '}') end--
+  return x.slice(start, end+1)
+}
+
+function toMarkdown(template: AgentFormat, depth=1){
+  if (typeof template === 'string') return template
+  let result = ''
+  for (let key in template){
+    if (template[key]){
+    result += `${'#'.repeat(depth)} ${key}
+${toMarkdown(template[key], depth+1)}
+`
+    }
+  }
+  return `${result}`
+}
+
+function countChar(text: string, char: string = '#'){
+  let n: number = 0
+  for (let t of text){
+    if (t === char) {n++}
+    else {return n}
+  }
+  return 0
 }
 
 /**
@@ -29,7 +68,7 @@ export class Order{
   compress_num: number // Number to compress
   compress_style: string // [summarize, delete](Now, summarize only)
   compress_prompt: string // Prompt to compress
-  bufname: string  // ID of window
+  filename: string  // ID of window
   log: Array<Array<object>> // Log of thread to go back
   dry_run: boolean // Just for debug.
   freeze: boolean // Do not go next
@@ -41,55 +80,23 @@ export class Order{
   post_user_write: string
   callback: string // Callback vim function
   timeout: number
+  agentPrompt: Agent
+  writer: Writer
+  websearch: boolean // Whether perform websearch or not
+  team: Team
 
   /**
    * Setup order object to make JSON to send to openai.
    * @param {string} model - Name of model. (Ex. "gpt-3.5-turbo")
    */
-  constructor(print = true, repeat = true, command = '',
-    type = 'chatgpt',
-    name = '', key = defaultKey, url = defaultUrl,
-    model = defaultModel, command_args = [],
-    max_length = 10, compress_num = 4, bufname = '',
-    dry_run = false, pre_user_write = '# ',
-    freeze = false, post_user_write = "\n--------------------\n",
-    window_style = 'horizontal',
-    float_geometry = {row: 2, col: 20, height: 6, width: 50},
-    options = {}, compress_prompt = COMPRESS_PROMPT,
-    compress_style = 'summarize',
-    timeout = 60000,
-    callback = 'ninco#tree_window'){
+  constructor(options: object = defaultOrder, agent: object = defaultAgent){
+    this.agentPrompt = agent
+    this.setParameter(options)
     this.body = {
-      model: model,
+      model: this.model,
       messages: [],
       stream: true,
     }
-    this.model = model
-    this.body = {...this.body, ...options}
-    this.name = name
-    this.type = type
-    this.print = print
-    this.repeat = repeat
-    this.command = command
-    this.command_args = command_args
-    this.key = key
-    this.url = url
-    this.max_length = max_length
-    this.compress_num = compress_num
-    this.compress_style = compress_style
-    this.bufname = bufname
-    this.freeze = freeze
-    this.log = [[]]
-    this.dry_run = dry_run
-    this.parent = ''
-    this.children = []
-    this.window_style = window_style
-    this.float_geometry = float_geometry
-    this.pre_user_write = pre_user_write
-    this.post_user_write = post_user_write
-    this.compress_prompt = compress_prompt
-    this.callback = callback
-    this.timeout = timeout
   }
 
   /**
@@ -101,6 +108,11 @@ export class Order{
       if (p in this && p !== 'body') this[p] = param[p]
     }
   return this
+  }
+
+  setWriter(writer: Writer){
+    this.writer = writer
+    return this
   }
 
   load(data: any){
@@ -125,17 +137,21 @@ export class Order{
     return this
   }
 
-  compress(writer: Writer){
+  compress(){
+    this.writer.filename = this.filename
     if (this.max_length <= this.body.messages.length){
       let tmpOrder: Order = this.copyChild()
+      tmpOrder.setWriter(this.writer)
       tmpOrder.body.messages = this.removeOld()
       tmpOrder.putUser(
-        this.compress_prompt + ":\n" + JSON.stringify(this.removeOld())
+        this.compress_prompt
+        + ":\n"
+        + JSON.stringify(this.removeOld())
       )
       if (this.dry_run){
         this.unshiftHistory('compressed')
       } else {
-        tmpOrder.run(writer).then(x=>this.unshiftHistory(x))
+        tmpOrder.run().then(x=>this.unshiftHistory(x))
       }
     }
     return this
@@ -154,10 +170,11 @@ export class Order{
     return this
   }
 
-  order(writer: Writer, text: string){
-    return this.putUser(text).run(writer).then((x)=>{
-      if(!this.freeze) this.putAssistant(x)
-    })
+  async reserve(texts: Array<string>){
+    for (let text of texts){
+      await this.putUser(text).run().then((x)=>{this.putAssistant(x)})
+    }
+    return this
   }
 
   /**
@@ -195,7 +212,9 @@ export class Order{
     for (const n in this){
       order[n] = copy(this[n])
     }
+    order.parent = this.name
     order.children = []
+    order.team = {}
     return order
   }
 
@@ -334,24 +353,25 @@ export class Order{
   }
 
   /**
-   * Receive reply from chatgpt and put it to vim window by denops.
-   * @param {Writer} writer - Writer object.
+   * Receive reply from chatgpt and write the result though writer.
    * @param {Order} order - Order object to use.
    * @param {bool} bool - If it is true, it put string to vim.
    * @returns {null} - All output of chatGPT.
    */
-  async run(writer: Writer){
+  async run(){
+    this.writer.filename = this.filename
     let allData = ""
     let process
+    let shell_writer
     if (this.command !== ""){
       process = new Deno.Command(this.command, {
         args: this.command_args,
         stdin: "piped",
       }).spawn();
-      writer = process.stdin.getWriter();
+      shell_writer = process.stdin.getWriter();
     }
     if (this.repeat){
-      writer.write(
+      this.writer.write(
         "\n"
         + this.pre_user_write
         + this.body.messages.slice(-1)[0].content
@@ -359,14 +379,16 @@ export class Order{
       )
     }
     if (this.dry_run){
-      if (this.print) writer.write(
+      if (this.print) this.writer.write(
         "\n" + this.body.messages.slice(-1)[0].content + "\n",
       )
       if (this.command !== ""){
-        writer.write(
-          new TextEncoder().encode(this.body.messages.slice(-1)[0].content)
+        shell_writer.write(
+          new TextEncoder().encode(
+            this.body.messages.slice(-1)[0].content
+          )
         )
-        writer.releaseLock();
+        shell_writer.releaseLock();
         await process.stdin.close();
       }
       allData += this.body.messages.slice(-1)[0].content
@@ -378,18 +400,199 @@ export class Order{
       for await (const chunk of resp.body){
         if (timeIsOut) break
         let data = processChunk(this.type, chunk)
-        if (this.print) writer.write(data.join(""), this.bufname)
+        if (this.print) this.writer.write(data.join(""))
         if (this.command !== "")
-          writer.write(new TextEncoder().encode(data.join('')))
+          this.writer.write(new TextDecoder().decode(data.join('')))
         allData += data.join("")
       }
     }
     if (this.command !== ""){
-      writer.releaseLock();
+      shell_writer.releaseLock();
       await process.stdin.close();
     }
-    if (this.print) writer.write("\n")
+    if (this.print) this.writer.write("\n")
     if (this.freeze) this.body.messages.pop()
     return allData
   }
+
+  async webSearch(query: string, start: number = 1, num:number = 10,
+            compressPrompt: string = '', stringNum = 10000){
+    let links = await duckduckgo(query, start, num)
+    let results = await Promise.all(
+      links.map(
+        link=>readHTML(link.link).then((text: string)=>{
+          let texts: Array<string> = [];
+          let i = 0
+          while (i < text.length){
+            let n = 0
+            while (
+              (text[n + i] !== '\n' && n < stringNum)
+                || (n + i) < text.length){
+              n += 1
+            }
+            texts.push(text.slice(i, n + i))
+            i = i + n
+            if (i >= text.length) break
+          }
+          if (compressPrompt !== '') {
+            return Promise.all(texts.map(x=>this.copyChild()
+              .putUser(compressPrompt + ":\n" + x).receive()))
+          }
+          return texts
+        }).then(
+        async(x)=>{
+          if (compressPrompt !== '') {
+            let allData: Array<string> = []
+            for await (const xx of x){
+              let data = ''
+              let timeIsOut = false
+              let timeoutId = setTimeout(
+                () => timeIsOut = true, this.timeout)
+              for await (const chunk of xx.body){
+                if (timeIsOut) break
+                data += processChunk(this.type, chunk)
+              }
+              allData.push(data)
+            }
+            return allData
+          }
+          return x
+        })
+      )
+    )
+    for (const n in results){
+      for (const nn in results[n]){
+        this.putSystem(`According to ${links[n].title}
+${results[n][nn]}`)
+      }
+    }
+    return this
+  }
+
+  private async getAgentResponse(key: string, text: string, asChild: boolean = false, onetask: boolean = false){
+    let prompt = this.agentPrompt[key]
+    let order = asChild ? this.copyChild(true) : this
+    if (onetask) order.reset()
+    let tmpPrompt = copy(this.agentPrompt)[key]
+    tmpPrompt['Body'] = text
+    return order.putUser(
+      toMarkdown(tmpPrompt)
+    ).run().then((x)=>{
+      if(!asChild) this.putAssistant(x)
+      return x
+    })
+  }
+
+  private async detectCommand(text: string, command: string, retry: number = 1){
+    // Make command
+    for (let n=0; n < retry; n++){
+      let tmpCommand = (
+        await this.getAgentResponse('command', text, true, true)
+      ).trim()
+      if (tmpCommand in this.agentPrompt){
+        command = tmpCommand
+        break
+      }
+    }
+    return command
+  }
+
+  async talk(text: string){
+    return this.putUser(text).run().then((x)=>{
+      this.putAssistant(x)
+      return x
+    })
+  }
+
+  async order(text: string, command: string = ''){
+    this.writer.filename = this.filename
+    if (command === ''){
+      await this.writer.alart('Process command')
+      command = await this.detectCommand(text, command)
+      if (command === '') command = 'talk'
+      // Process
+      await this.writer.alart(`Current mode is ${command}`)
+      return command
+    }
+    switch (command) {
+
+      default :
+        await this.writer.alart(`Command parse failed ${command}`)
+        return (async()=>null)
+
+      case "talk":
+        return this.putUser(text).run().then((x)=>{
+          this.putAssistant(x)
+          return x
+        })
+
+      case "write":
+        return this.getAgentResponse(command, text, true)
+          .then(async x=>{
+            try{
+              let filename = await this.getAgentResponse('filename', x, true)
+              if (filename[0] == "'") filename = filename.slice(1, filename.length - 1)
+              if (filename[0] == '"') filename = filename.slice(1, filename.length - 1)
+              this.writer.alart(`New file name ${filename}`)
+              let original_filename = this.writer.filename
+              this.writer.filename = filename.trim()
+              this.writer.makefile()
+              this.writer.write(x)
+              this.putUser(text)
+              this.putAssistant(x)
+              this.writer.filename = original_filename
+              return {type: command, content: x}
+            } catch(er) {
+              throw er
+            }
+          })
+
+      case "plan":
+        return this.getAgentResponse(command, text, true)
+          .then(x=>{
+            for (let line of x.split('\n')){
+              let [fname, doc, exports] = line.split(':')
+            }
+          })
+
+      case "websearch":
+        if (this.websearch){
+          this.writer.alart('Web search is going on.')
+          await this.webSearch(await this.getAgentResponse(command, text, true))
+        }
+        return this.putUser(text).run().then((x)=>{
+            this.putAssistant(x)
+          return x
+        })
+    }
+  }
+
+  async test(command: Array<string>, text: string, filename: string){
+    process = new Deno.Command('sh', {
+      args: ['-c'].concat(command),
+      stdin: "piped",
+      stdout: "piped",
+      stderr: "piped",
+    }).spawn();
+    let out = await new TextDecoder().decode(process.stderr.getReader().read().value)
+    let err = await new TextDecoder().decode(process.stdout.getReader().read().value)
+    let prompt = copy(this.agentPrompt.better)
+    prompt.Error = err
+    prompt.Output = out
+    prompt.Body = text
+    return this.putUser(toMarkdown(prompt)).run().then(async (x)=>{
+        this.putAssistant(x)
+        let original_filename = this.writer.filename
+        this.writer.filename = filename.trim()
+        await this.writer.reset()
+        this.writer.write(x)
+        this.putUser(x)
+        this.writer.filename = original_filename
+      return x
+    })
+
+  }
+
 }
+
+

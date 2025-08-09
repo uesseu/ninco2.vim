@@ -33,7 +33,7 @@ function! ninco#get_param(name, param)
 endfunction
 
 function! ninco#open(ai)
-  let bufname = denops#request('ninco', 'get_param', [a:ai, 'bufname'])
+  let bufname = denops#request('ninco', 'get_param', [a:ai, 'filename'])
   let bufname = bufname == '' ? a:ai : bufname
   if bufwinid('^'.bufname.'$') == -1
     let style = denops#request('ninco', 'get_param', [a:ai, 'window_style'])
@@ -88,7 +88,7 @@ function ninco#config(name, options = #{})
 endfunction
 
 function ninco#set_bufname(name)
-  call ninco#config(a:name, #{bufname: a:name})
+  call ninco#config(a:name, #{filename: a:name})
   return a:name
 endfunction
 
@@ -114,13 +114,20 @@ endfunction
 
 function! ninco#run(context, order='%s', ...)
   let order = 'printf'->call([a:order]+ a:000)
-  call denops#request('ninco', 'order', [a:context, order])
+  call denops#request('ninco', 'run', [a:context, order, 'talk'])
   call ninco#compress(a:context)
   return a:context
 endfunction
 
+function! ninco#reserve(context, orders)
+  call denops#request('ninco', 'reserve', [a:context, a:orders])
+  return a:context
+endfunction
+
+
 function! ninco#put_window(args, buf, winid = '-1', normal = v:false) abort
   let winid = a:winid == '-1'? a:buf->bufwinid() : a:winid
+  echo winid
   let text = a:buf->getbufline('.'->line(winid))[-1] . a:args->substitute('\\ ', ' ', 'g')
   "call win_execute(winid, 'norm G')
   call setbufline(a:buf, '.'->line(winid), text)
@@ -213,8 +220,9 @@ function! ninco#_find_vim_popup(buf) abort
   return -1
 endfunction
 
-function! ninco#web_search(name, query)
-  call denops#request('ninco', 'webSearch', [a:name, a:query])
+function! ninco#web_search(name, query, num=10, compress_prompt='', string_num = 10000)
+  call denops#request('ninco', 'webSearch',
+        \[a:name, a:query, a:num, a:compress_prompt, a:string_num])
 endfunction
 
 function! ninco#float(buf, pos = #{row: 2, col: 20, height: 6, width: 50}) abort
@@ -240,8 +248,8 @@ function! ninco#float_close(winid) abort
   endif
 endfunction
 
-function! ninco#divide(name, text) abort
-  return denops#request('ninco', 'divideTask', [a:name, a:text])
+function! ninco#divide_test(name, text) abort
+  return denops#request('ninco', 'divideTaskTest', [a:name, a:text])
 endfunction
 
 function! ninco#float_move(winid, new_pos) abort

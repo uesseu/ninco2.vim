@@ -17,30 +17,45 @@ export function vimPutString(denops: Denops, text: string, buf: string){
     text.split("\n").map(d =>{
       if(num !== 0) denops.call('win_execute', x, 'norm o')
       denops.call('ninco#put_window', d.replaceAll(' ', '\\ '), buf, x, normal)
-      denops.cmd('redraw')
       num++
     })
   })
 }
 
-
 export class Writer{
+  filename: string
   constructor(){ }
-  write(){ }
+  makefile(){ }
+  reset() { }
+  write(text: string){ }
+  alart(text: string){ }
 }
 
 export class VimWriter extends Writer{
   denops: Denops
-  buffer: string
+  filename: string
 
-  constructor(denops: Denops, order: Order){
+  constructor(denops: Denops, filename: string){
     super()
     this.denops = denops
-    this.bufname = order.bufname
+    this.filename = filename
   }
 
-  write(text: string){
-    vimPutString(this.denops, text, this.bufname)
+  async makefile(){
+    await this.denops.cmd(`split ${this.filename}`)
+  }
+
+  async write(text: string){
+    vimPutString(this.denops, text, this.filename)
+  }
+
+  async reset(){
+    this.denops.call('win_execute', await this.denops.eval(`bufwinid("${this.filename}")`), "norm ggVGd")
+  }
+
+  async alart(text: string){
+    await this.denops.cmd('redraw')
+    await this.denops.cmd(`echomsg '${text}'`)
   }
 }
 

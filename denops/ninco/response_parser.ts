@@ -4,7 +4,7 @@
  * @param {any} response - Denops object.
  * @returns {string} - Output of LLM.
  */
-export function parseResponseChatgpt(response: any){
+export function parseResponseChatgpt(response: any): any{
   if (response.trim()[0] === "{"){
     try {
       return Array(JSON.parse(response.trim().slice(5)))
@@ -46,8 +46,8 @@ export function parseResponseChatgpt(response: any){
   }
 }
 
-export function processChunk(type: string, chunk: any){
-  let data
+export function processChunk(type: string, chunk: any): Array<string>{
+  let data: Array<string>
   let raw = new TextDecoder().decode(chunk)
   try{
     if (type === 'chatgpt'){
@@ -57,9 +57,9 @@ export function processChunk(type: string, chunk: any){
       if (res && res['message']) data = [res['message']['content']]
       else data = []
     }
+    return data
   } catch {
-    return ''
+    return ['']
   }
-  return data
 }
 
