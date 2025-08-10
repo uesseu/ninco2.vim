@@ -170,9 +170,9 @@ export async function main(denops: Denops): Promise<void> {
       )
     },
 
-    async run(name, text, command='talk'){
+    async run(name, text, command=''){
       const order = globalOrders[name]
-      order.talk(text, command)
+      order.order(text, command)
     },
 
     async reserve(name, texts){
@@ -215,8 +215,9 @@ export async function main(denops: Denops): Promise<void> {
       globalOrders[name].webSearch(query, 1, num, compressPrompt, stringNum)
     },
 
-    async test(name, command, filename): Promise<void>{
-      globalOrders[name].test(command, await denops.call('getbufline', name, 0, '$'), name)
+    async better(name, command): Promise<void>{
+      let fname = await denops.eval('buffer_name()')
+      globalOrders[name].better(command, (await denops.eval(`getbufline('${fname}', 0, '$')`)).join('\n'), fname)
     },
 
 

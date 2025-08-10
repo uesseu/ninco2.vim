@@ -114,8 +114,13 @@ endfunction
 
 function! ninco#run(context, order='%s', ...)
   let order = 'printf'->call([a:order]+ a:000)
-  call denops#request('ninco', 'run', [a:context, order, 'talk'])
+  call denops#request('ninco', 'run', [a:context, order, ''])
   call ninco#compress(a:context)
+  return a:context
+endfunction
+
+function! ninco#better(context, command)
+  call denops#request('ninco', 'better', [a:context, a:command])
   return a:context
 endfunction
 
@@ -128,8 +133,9 @@ endfunction
 function! ninco#put_window(args, buf, winid = '-1', normal = v:false) abort
   let winid = a:winid == '-1'? a:buf->bufwinid() : a:winid
   echo winid
-  let text = a:buf->getbufline('.'->line(winid))[-1] . a:args->substitute('\\ ', ' ', 'g')
-  "call win_execute(winid, 'norm G')
+  let lin = a:buf->getbufline('.'->line(winid))
+  let lin = len(lin)? lin[-1] : ''
+  let text = lin . a:args->substitute('\\ ', ' ', 'g')
   call setbufline(a:buf, '.'->line(winid), text)
   call win_execute(winid, 'norm $')
 endfunction
@@ -248,10 +254,6 @@ function! ninco#float_close(winid) abort
   endif
 endfunction
 
-function! ninco#divide_test(name, text) abort
-  return denops#request('ninco', 'divideTaskTest', [a:name, a:text])
-endfunction
-
 function! ninco#float_move(winid, new_pos) abort
   if has('nvim')
     call nvim_win_set_config(
@@ -280,5 +282,3 @@ let ninco#url = #{
       \webui: "http://127.0.0.1:8000/v1/chat/completions",
       \gemini: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
       \}
-
-

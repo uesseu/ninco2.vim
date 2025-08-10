@@ -9,23 +9,20 @@ export function copy(x){
   return JSON.parse(JSON.stringify(x))
 }
 
-export class Team{
-  receptionist: Order // Detect what user want
-  programmer: Order  // Just a programmer
-  manager: Order  // Manage files
-  runner: Order  // Run command in safe way
+export interface Team{
+  plan: Order
+  command: Order
+  filename: Order
+  better: Order
+  appendix: Order
+  write: Order
+  structure: Order
+  websearch: Order
+  test: Order
+  select: Order
+  extract: Order
 }
 
-function extractJson(x){
-  let start = 0
-  let end = x.length - 1
-  while(x[start] != '{'){
-    if (start === x.length) return x
-    start++ 
-  }
-  while(x[end] != '}') end--
-  return x.slice(start, end+1)
-}
 
 function toMarkdown(template: AgentFormat, depth=1){
   if (typeof template === 'string') return template
@@ -97,6 +94,7 @@ export class Order{
       messages: [],
       stream: true,
     }
+    this.team = {}
   }
 
   /**
@@ -470,15 +468,16 @@ ${results[n][nn]}`)
   }
 
   private async getAgentResponse(key: string, text: string, asChild: boolean = false, onetask: boolean = false){
+    const ai = this.team[key] ? this.team[key] : this
     let prompt = this.agentPrompt[key]
-    let order = asChild ? this.copyChild(true) : this
+    let order = asChild ? ai.copyChild(true) : ai
     if (onetask) order.reset()
-    let tmpPrompt = copy(this.agentPrompt)[key]
+    let tmpPrompt = copy(ai.agentPrompt)[key]
     tmpPrompt['Body'] = text
     return order.putUser(
       toMarkdown(tmpPrompt)
     ).run().then((x)=>{
-      if(!asChild) this.putAssistant(x)
+      if(!asChild) ai.putAssistant(x)
       return x
     })
   }
@@ -497,13 +496,6 @@ ${results[n][nn]}`)
     return command
   }
 
-  async talk(text: string){
-    return this.putUser(text).run().then((x)=>{
-      this.putAssistant(x)
-      return x
-    })
-  }
-
   async order(text: string, command: string = ''){
     this.writer.filename = this.filename
     if (command === ''){
@@ -512,7 +504,6 @@ ${results[n][nn]}`)
       if (command === '') command = 'talk'
       // Process
       await this.writer.alart(`Current mode is ${command}`)
-      return command
     }
     switch (command) {
 
@@ -527,16 +518,16 @@ ${results[n][nn]}`)
         })
 
       case "write":
+        let filename = await this.getAgentResponse('filename', text, true)
+        if (filename[0] == "'") filename = filename.slice(1, filename.length - 1)
+        if (filename[0] == '"') filename = filename.slice(1, filename.length - 1)
+        this.writer.alart(`New file name ${filename}`)
+        this.writer.filename = filename.trim()
+        let original_filename = this.writer.filename
+        this.writer.makefile()
         return this.getAgentResponse(command, text, true)
           .then(async x=>{
             try{
-              let filename = await this.getAgentResponse('filename', x, true)
-              if (filename[0] == "'") filename = filename.slice(1, filename.length - 1)
-              if (filename[0] == '"') filename = filename.slice(1, filename.length - 1)
-              this.writer.alart(`New file name ${filename}`)
-              let original_filename = this.writer.filename
-              this.writer.filename = filename.trim()
-              this.writer.makefile()
               this.writer.write(x)
               this.putUser(text)
               this.putAssistant(x)
@@ -550,9 +541,7 @@ ${results[n][nn]}`)
       case "plan":
         return this.getAgentResponse(command, text, true)
           .then(x=>{
-            for (let line of x.split('\n')){
-              let [fname, doc, exports] = line.split(':')
-            }
+            this.writer.write(x)
           })
 
       case "websearch":
@@ -567,7 +556,7 @@ ${results[n][nn]}`)
     }
   }
 
-  async test(command: Array<string>, text: string, filename: string){
+  async better(command: Array<string>, text: string, filename: string){
     process = new Deno.Command('sh', {
       args: ['-c'].concat(command),
       stdin: "piped",

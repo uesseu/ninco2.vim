@@ -13,31 +13,19 @@ export interface AgentFormat{
 }
 
 export interface Agent{
-  main: string
-  depth: number
-  retry: number
-  format: AgentFormat
-  plan: AgentFormat
   command: AgentFormat
   filename: AgentFormat
+  terminal: AgentFormat
   better: AgentFormat
-  appendix: AgentFormat
   write: AgentFormat
-  structure: AgentFormat
   websearch: AgentFormat
-  test: AgentFormat
   select: AgentFormat
-  extract: AgentFormat
 }
 
 export const defaultAgent: Agent = {
-  main: `You are an AI agent.
-Your must write according to a certain format.
-Do your best.
-`,
   command: {
     Goal: `Select one of the commands user is requiring.
-The output should be one of words in 'write', 'websearch', 'plan' or 'talk'.
+The output should be one of words in 'write', 'websearch', or 'talk'.
 Understand carefully what user wants.
 'write' should be selected only when user's request is coding and can be written in one file instantly.
 If the output should be multiple files, select 'plan'.
@@ -47,7 +35,6 @@ In other cases, select 'talk'.
 
 - write: If the user is requiring source code of programming language and it can be written in one file, select this.
 - websearch: If the user want to learn or research something, select this.
-- plan: If the user is requiring source code but the output needs multiple files.
 - talk: In other cases, including user needs advice, select this.`,
     Format: 'Just coding one word in items.',
     Example: 'talk',
@@ -57,7 +44,7 @@ In other cases, select 'talk'.
   },
 
   filename:{
-    Goal: `Make a path for the content below.`,
+    Goal: `Make a file path of result of user's request.`,
     Format: `The path must be under ./.
 Do not add comment or brace. Just write the path.`,
     Example: `./src/get_pos.py`,
@@ -66,29 +53,35 @@ Do not add comment or brace. Just write the path.`,
     Output: ''
   },
 
-  write: {
-    Goal: `Write a perfect output and submit to the user.
-The output should be able to execute, tested and submit.`,
-    Format: `If output is code, you must not write anything outside of the code.
-If you need to say something, write it as comment. It must be editable by text editor.
-The example is simple, but the output may be big code if it needs to be big.`,
-    Example: `# This is a python code to plot line.
-
-import matplotlib.pyplot as plt
-plt.plot([1, 2], [4, 1])
-plt.show()`,
+  terminal:{
+    Goal: `Make a command to run the command.`,
+    Format: `The command must be shell command.`,
+    Example: `python parse.py '4 | 3 + 8'`,
     Body: '',
     Error: '',
     Output: ''
   },
 
-  appendix: {
-    Goal: `Make script to install libraries or set up environ to run the program you wrote.
-The interpreter or compiler are already installed and set up of virtual environment has done.`,
-    Format: `Write small commands with only one or two comments. Do not write long script.`,
-    Example: `\`\`\`# The commands to setup.
-sudo apt install qt5
-pip install pandas\`\`\``,
+
+  write: {
+    Goal: `Write a perfect output and submit to the user.
+The output should be able to execute, tested and submit.`,
+    Format: `If output is code, you must not write anything outside of the code.
+If you need to say something, write it as comment. It must be editable by text editor.
+The example is simple, but the output may be big code if it needs to be big.
+If possible, write test code.`,
+    Example: `# This is a python code to perform fizzbuzz.
+def fizzbuzz(num: int):
+    fizz = 'fizz' if num % 3 == 0 else ''
+    buzz = 'buzz' if num % 5 == 0 else ''
+    return f'{fizz}{buzz}'
+
+if __name__ == '__main__':
+    assert fizzbuzz(15) == 'fizzbuzz'
+    assert fizzbuzz(5) == 'buzz'
+    assert fizzbuzz(8) == ''
+    assert fizzbuzz(3) == 'fizz'
+`,
     Body: '',
     Error: '',
     Output: ''
@@ -123,107 +116,6 @@ pip install pandas\`\`\``,
     Output: ''
   },
 
-  test: {
-    Goal: 'Write a test code for the body.',
-    Format: 'There is no special format. But the test code must be executable.',
-    Example: '',
-    Body: '',
-    Error: '',
-    Output: ''
-  },
-
-  plan: {
-    Goal: `Divide the task into some child tasks with details.`,
-    Format: `Each child has same sections.
-Each tasks has to have number like 'Task1' or 'Task2'.
-Each tasks has sections like below.
-- Todo
-- Details
-- Filepath
-- Language
-Task label has one sharp, and other labels has two sharps.
-`,
-    Example: `# Task1
-## Goal
-Write a code to process toml data.
-The class name is "Toml" and it will be imported from other scripts.
-
-## Details
-Name of the class is "Toml" which is inherit from "dict". The structure of the class is below.
-
-- __init__(self)
-- load(self, fname: str) -> None
-- loads(self, text: str) -> None
-- dump(self, fname) -> None
-- dumps(self) -> str
-- from_dict(self, data: dict) -> Toml
-
-## Filepath
-./toml.py
-
-## Language
-code: python3
-comment: English
-
-# Task2
-## Goal
-Write a code to process toml data.
-The class name is "Toml" and it will be imported from other scripts.
-
-## Details
-Name of the class is "Toml" which is inherit from "dict". The structure of the class is below.
-
-- __init__(self)
-- load(self, fname: str) -> None
-- loads(self, text: str) -> None
-- dump(self, fname) -> None
-- dumps(self) -> str
-- from_dict(self, data: dict) -> Toml
-
-## Filepath
-./toml.py
-
-## Language
-code: python3
-comment: English
-`,
-    Body: '',
-    Error: ''
-  },
-
-  extract: {
-    Goal: `Extract the section from divided tasks.`,
-    Format: `Write in markdown style. Each child has same sections.
-- Todo
-- Details
-- Filepath
-- Language`,
-    Example: `
-# Section3
-## Todo
-Write a code to process toml data.
-The class name is "Toml" and it will be imported from other scripts.
-
-## Details
-Name of the class is "Toml" which is inherit from "dict". The structure of the class is below.
-
-- __init__(self)
-- load(self, fname: str) -> None
-- loads(self, text: str) -> None
-- dump(self, fname) -> None
-- dumps(self) -> str
-- from_dict(self, data: dict) -> Toml
-
-## Filepath
-./toml.py
-
-## Language
-code: python3
-comment: English
-`,
-    Body: '',
-    Error: ''
-  }
 }
 
 export const defaultURL = {
