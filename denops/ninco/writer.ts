@@ -15,7 +15,10 @@ export function vimPutString(denops: Denops, text: string, buf: string){
       normal = true
     }
     text.split("\n").map(d =>{
-      if(num !== 0) denops.call('win_execute', x, 'norm o0D')
+      if(num !== 0) {
+        await denops.call('win_execute', x, 'norm o')
+        await denops.call('win_execute', x, 'norm 0D')
+      }
       denops.call('ninco#put_window', d.replaceAll(' ', '\\ '), buf, x, normal)
       num++
     })
