@@ -123,7 +123,7 @@ export const defaultURL = {
   ollama: "http://localhost:11434/api/chat", 
   webui: "http://127.0.0.1:8000/v1/chat/completions",
   gemini: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-  }
+}
 
 export const defaultOrder: object = {
   print: true,
@@ -134,6 +134,7 @@ export const defaultOrder: object = {
   key: defaultKey,
   url: defaultURL['openai'],
   model: defaultModel,
+  mode: 'talk',
   command_args: [],
   max_length: 10,
   compress_num: 4,

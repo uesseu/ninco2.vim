@@ -171,13 +171,11 @@ export async function main(denops: Denops): Promise<void> {
     },
 
     async run(name, text, command=''){
-      const order = globalOrders[name]
-      order.order(text, command)
+      globalOrders[name].order(text, command)
     },
 
     async reserve(name, texts){
-      const order = globalOrders[name]
-      order.reserve(texts)
+      globalOrders[name].reserve(texts)
     },
 
     async compress(name): Promise<void>{
@@ -205,9 +203,7 @@ export async function main(denops: Denops): Promise<void> {
 
     listTalk(): Array<string>{
       let result = Array()
-      for (let n in globalOrders){
-        result.push(n)
-      }
+      for (let n in globalOrders) result.push(n)
       return result
     },
 
@@ -219,7 +215,6 @@ export async function main(denops: Denops): Promise<void> {
       let fname = await denops.eval('buffer_name()')
       globalOrders[name].better(command, (await denops.eval(`getbufline('${fname}', 0, '$')`)).join('\n'), fname)
     },
-
 
   }
 }

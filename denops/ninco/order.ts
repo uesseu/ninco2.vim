@@ -59,6 +59,7 @@ export class Order{
   print: boolean // Whether write in vim buffer
   repeat: boolean // Repeat what you say on vim
   model: string // Model name
+  mode: string
   url: string  // url of web api
   key: string  // Key of your account
   max_length: number  // If over, compress
@@ -497,6 +498,7 @@ ${results[n][nn]}`)
   }
 
   async order(text: string, command: string = ''){
+    if (this.mode === 'talk') command = 'talk'
     this.writer.filename = this.filename
     if (command === ''){
       await this.writer.alart('Process command')
@@ -583,5 +585,3 @@ ${results[n][nn]}`)
   }
 
 }
-
-
