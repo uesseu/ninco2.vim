@@ -196,6 +196,8 @@ let s:cmd = {}
 function ninco#command_wrapper(...)
   let args = a:000
   if a:000->len() == 1 || a:000[1]->match('%s') != -1
+    let [line_end, column_end] = "'>"->getpos()[1:2]
+    call setpos('.', [0, column_end, 0, 0])
     norm o
     let args = args + [ninco#get_selection()]
   endif
