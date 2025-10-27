@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "openai": "^4.7.1",
+    "turndown": "7.2.1"
+  }
+}
