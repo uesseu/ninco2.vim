@@ -1,0 +1,2 @@
+#!/usr/bin/sh
+deno  --allow-net --allow-env --allow-run "$(dirname "$0")/cli/ninco.ts"

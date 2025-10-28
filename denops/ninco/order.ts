@@ -1,7 +1,10 @@
-import {VimWriter, Writer} from './writer.ts'
+import {Writer} from './writer.ts'
+import {Denops} from "jsr:@denops/std@^7.0.0/function";
 import {parseResponseChatgpt, processChunk} from './response_parser.ts'
 import {Agent, defaultAgent, AgentFormat, defaultOrder} from './defaults.ts'
-import {duckduckgo, readHTML} from './websearch.ts'
+import {duckduckgo, readHTML, Web, SearchEngine} from './websearch.ts'
+import {MCP, MCPS} from './mcp.ts'
+
 
 const COMPRESS_PROMPT = 'Please summarize this talk log.'
 
@@ -24,6 +27,11 @@ export interface Team{
 }
 
 
+/**
+ * Make markdown from object
+ * @param {AgentFromat} template - Template
+ * @param {Number} depth - Depth of template. Need not to set.
+ */
 function toMarkdown(template: AgentFormat, depth=1){
   if (typeof template === 'string') return template
   let result = ''
@@ -37,51 +45,62 @@ ${toMarkdown(template[key], depth+1)}
   return `${result}`
 }
 
-function countChar(text: string, char: string = '#'){
-  let n: number = 0
-  for (let t of text){
-    if (t === char) {n++}
-    else {return n}
-  }
-  return 0
-}
-
 /**
  * A manager of order for LLM.
  * It can make JSON string to send to openai.
  */
 export class Order{
+  // Messages
   body // The body of messages.
+  log: Array<Array<object>> // Log of thread to go back
+
+  // Base options
   type: string // ['chatgpt', 'ollama']
   name: string // Name of thread
+  model: string // Model name
+  url: string  // url of web api
+  key_ai: string  // Key of your AI account
+  key_websearch: string  // Key of your MCP web search service
+  freeze: boolean // Do not go next
+
+  // Shell command
   command: string // Command name and arguments
   command_args: Array<string>
-  print: boolean // Whether write in vim buffer
-  repeat: boolean // Repeat what you say on vim
-  model: string // Model name
-  mode: string
-  url: string  // url of web api
-  key: string  // Key of your account
+
+  // Compress
   max_length: number  // If over, compress
   compress_num: number // Number to compress
   compress_style: string // [summarize, delete](Now, summarize only)
+  web_compress_prompt: string // Prompt to compress
   compress_prompt: string // Prompt to compress
+  websearch_compress: boolean // Run compress
+
+  // AI window
   filename: string  // ID of window
-  log: Array<Array<object>> // Log of thread to go back
-  dry_run: boolean // Just for debug.
-  freeze: boolean // Do not go next
   window_style: string
   float_geometry: object
+
+  // Tree
   parent: string // Name of parent thread
   children: Array<string> // Names of child threads
+
+  // Write style
+  print: boolean // Whether write in vim buffer
+  repeat: boolean // Repeat what you say on vim
   pre_user_write: string
   post_user_write: string
-  callback: string // Callback vim function
   timeout: number
   agentPrompt: Agent
   writer: Writer
-  websearch: boolean // Whether perform websearch or not
-  team: Team
+
+  // Agent
+  use_websearch: boolean // Whether perform websearch or not
+  mode: string
+  team: Team | null
+  fast: boolean
+  platform: string
+  parallel: number
+
 
   /**
    * Setup order object to make JSON to send to openai.
@@ -89,20 +108,41 @@ export class Order{
    */
   constructor(options: object = defaultOrder, agent: object = defaultAgent){
     this.agentPrompt = agent
-    this.setParameter(options)
+    this.configure(options)
     this.body = {
       model: this.model,
       messages: [],
       stream: true,
     }
     this.team = {}
+    this.autoTune()
+    if (this.key_ai === '') this.key_ai = Deno.env.get('NINCO_KEY_AI')
+    if (this.key_websearch === '') this.key_websearch = Deno.env.get('NINCO_KEY_WEBSEARCH')
+  }
+
+  autoTune(){
+    if (this.fast) return 0
+    switch (this.model) {
+      default:
+        this.fast = {config: {}, parameter: {}}
+        return
+      case 'gpt-5-nano':
+        this.fast = {config: {}, parameter: {reasoning_effort: 'minimal', verbosity: 'low'}}
+        return
+      case 'gpt-5-mini':
+        this.fast = {config: {model: 'gpt-5-nano'}, parameter: {reasoning_effort: 'minimal', verbosity: 'low'}}
+        return
+      case 'gpt-5':
+        this.fast = {config: {model: 'gpt-5-nano'}, parameter: {reasoning_effort: 'minimal', verbosity: 'low'}}
+        return
+    }
   }
 
   /**
    * Set parameter from json.
    * @param {object} param - Content of parameter.
    */
-  setParameter(param: any){
+  configure(param: any){
     for (let p in param){
       if (p in this && p !== 'body') this[p] = param[p]
     }
@@ -119,7 +159,7 @@ export class Order{
     return this
   }
 
-  setOptions(param: any){
+  setParameter(param: any){
     this.body= {...this.body, ...param}
     return this
   }
@@ -139,19 +179,15 @@ export class Order{
   compress(){
     this.writer.filename = this.filename
     if (this.max_length <= this.body.messages.length){
-      let tmpOrder: Order = this.copyChild()
-      tmpOrder.setWriter(this.writer)
+      let tmpOrder: Order = this.makeWorker()
+      tmpOrder.writer = this.writer
       tmpOrder.body.messages = this.removeOld()
       tmpOrder.putUser(
         this.compress_prompt
         + ":\n"
         + JSON.stringify(this.removeOld())
       )
-      if (this.dry_run){
-        this.unshiftHistory('compressed')
-      } else {
-        tmpOrder.run().then(x=>this.unshiftHistory(x))
-      }
+      tmpOrder.run().then(x=>this.unshiftHistory(x))
     }
     return this
   }
@@ -206,14 +242,16 @@ export class Order{
     this.log.push([])
   }
 
-  copy(){
+  copy(register: boolean = true){
     let order = new Order()
-    for (const n in this){
-      order[n] = copy(this[n])
+    if (register){
+      for (const n in this){
+        order[n] = copy(this[n])
+      }
+      order.parent = this.name
+      order.children = []
     }
-    order.parent = this.name
-    order.children = []
-    order.team = {}
+    order.writer = this.writer
     return order
   }
 
@@ -248,13 +286,13 @@ export class Order{
     let has_compress = false
     num = this.max_length
     while (start !==0 && num!==0){
-      if(flat_log[start].kind === 'normal') num --
-      if(flat_log[start].kind === 'compress') has_compress = true
+      if (flat_log[start].kind === 'normal') num --
+      if (flat_log[start].kind === 'compress') has_compress = true
       start --
     }
     if (has_compress){
       while (true){
-        if(flat_log[start].kind === 'compress') break
+        if (flat_log[start].kind === 'compress') break
         start ++
       }
       this.body.messages.unshift(flat_log[start])
@@ -301,12 +339,12 @@ export class Order{
   receive(){
     this.body.model = this.model
     return fetch(this.url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${this.key}`
-      },
-      body: JSON.stringify(this.body),
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${this.key_ai}`
+    },
+    body: JSON.stringify(this.body),
     });
   }
 
@@ -331,8 +369,10 @@ export class Order{
     let timeIsOut = false
     let timeoutId = setTimeout(() => timeIsOut = true, this.timeout);
     for await (const chunk of resp.body){
-      if (timeIsOut) return allData
-      allData += processChunk(this.type, chunk).join("")
+      if (timeIsOut) break
+      let data = processChunk(this.type, chunk)
+      if (this.print) this.writer.write(data.join(""))
+      allData += data.join("")
     }
     return allData
   }
@@ -342,12 +382,16 @@ export class Order{
    * @param {Order} order - Template of order object.
    * @returns {Order} - Order.
    */
-  copyChild(freeze=true){
-    let tmpOrder: Order = this.copy()
+  makeWorker(freeze=true, fast=false){
+    let tmpOrder: Order = this.copy(false)
     tmpOrder.print = false
     tmpOrder.repeat = false
     tmpOrder.freeze = freeze
     tmpOrder.command = ''
+    if (fast){
+      tmpOrder.configure(this.fast.config)
+      tmpOrder.setParameter(this.fast.parameter)
+    }
     return tmpOrder
   }
 
@@ -359,16 +403,6 @@ export class Order{
    */
   async run(){
     this.writer.filename = this.filename
-    let allData = ""
-    let process
-    let shell_writer
-    if (this.command !== ""){
-      process = new Deno.Command(this.command, {
-        args: this.command_args,
-        stdin: "piped",
-      }).spawn();
-      shell_writer = process.stdin.getWriter();
-    }
     if (this.repeat){
       this.writer.write(
         "\n"
@@ -377,46 +411,31 @@ export class Order{
         + this.post_user_write
       )
     }
-    if (this.dry_run){
-      if (this.print) this.writer.write(
-        "\n" + this.body.messages.slice(-1)[0].content + "\n",
-      )
-      if (this.command !== ""){
-        shell_writer.write(
-          new TextEncoder().encode(
-            this.body.messages.slice(-1)[0].content
-          )
-        )
-        shell_writer.releaseLock();
-        await process.stdin.close();
-      }
-      allData += this.body.messages.slice(-1)[0].content
-    } else {
-      // Receive response of AI
-      let resp = await this.receive()
-      let timeIsOut = false
-      let timeoutId = setTimeout(() => timeIsOut = true, this.timeout);
-      for await (const chunk of resp.body){
-        if (timeIsOut) break
-        let data = processChunk(this.type, chunk)
-        if (this.print) this.writer.write(data.join(""))
-        if (this.command !== "")
-          this.writer.write(new TextDecoder().decode(data.join('')))
-        allData += data.join("")
-      }
-    }
+    let data = await this.getText()
     if (this.command !== ""){
+      let process = new Deno.Command(this.command, {
+        args: this.command_args,
+        stdin: "piped",
+        stdout: "piped",
+      }).spawn()
+      let shell_writer = process.stdin.getWriter();
+      shell_writer.write(new TextEncoder().encode(data));
       shell_writer.releaseLock();
       await process.stdin.close();
+      console.log(new TextDecoder().decode(
+        (await process.stdout.getReader().read()).value
+      ))
     }
     if (this.print) this.writer.write("\n")
     if (this.freeze) this.body.messages.pop()
-    return allData
+    return data
   }
 
-  async webSearch(query: string, start: number = 1, num:number = 10,
-            compressPrompt: string = '', stringNum = 10000){
-    let links = await duckduckgo(query, start, num)
+  async websearch(query: string, num:number = 10, stringNum = 10000, kind: string = 'duckduckgo'){
+    let links = []
+    links = kind === 'duckduckgo' ?
+      await duckduckgo(query, 1, num) :
+      await (new Web(SearchEngine.brave, this.key_websearch).search(query, num, 'jp', 'jp'))
     let results = await Promise.all(
       links.map(
         link=>readHTML(link.link).then((text: string)=>{
@@ -433,48 +452,63 @@ export class Order{
             i = i + n
             if (i >= text.length) break
           }
-          if (compressPrompt !== '') {
-            return Promise.all(texts.map(x=>this.copyChild()
-              .putUser(compressPrompt + ":\n" + x).receive()))
-          }
+          if (this.websearch_compress) return Promise.all(
+            texts.map(
+              x => this.makeWorker().putUser(this.web_compress_prompt + ":\n" + x).receive()
+            )
+          )
           return texts
         }).then(
-        async(x)=>{
-          if (compressPrompt !== '') {
-            let allData: Array<string> = []
-            for await (const xx of x){
-              let data = ''
-              let timeIsOut = false
-              let timeoutId = setTimeout(
-                () => timeIsOut = true, this.timeout)
-              for await (const chunk of xx.body){
-                if (timeIsOut) break
-                data += processChunk(this.type, chunk)
+          async(x)=>{
+            if (this.websearch_compress) {
+              console.log('====================COMPRESS====================')
+              let allData: Array<string> = []
+              for await (const xx of x){
+                let data = ''
+                let timeIsOut = false
+                let timeoutId = setTimeout(() => timeIsOut = true, this.timeout)
+                for await (const chunk of xx.body){
+                  if (timeIsOut) break
+                  data += processChunk(this.type, chunk)
+                }
+                allData.push(data)
               }
-              allData.push(data)
+              return allData
             }
-            return allData
-          }
-          return x
-        })
+            return x
+          })
       )
     )
     for (const n in results){
       for (const nn in results[n]){
+        try{
+          console.log(typeof results[n][nn])
         this.putSystem(`According to ${links[n].title}
 ${results[n][nn]}`)
+        } catch(er) {
+          throw er
+        }
       }
     }
     return this
   }
 
-  private async getAgentResponse(key: string, text: string, asChild: boolean = false, onetask: boolean = false){
-    const ai = this.team[key] ? this.team[key] : this
-    let prompt = this.agentPrompt[key]
-    let order = asChild ? ai.copyChild(true) : ai
+  /**
+   * Get response along the agent prompts.
+   * @param {string} order - Role of the AI.
+   * @param {text} string - Prompt for the AI.
+   * @param {asChild} bool - If true, child will be yielded.
+   * @param {reset} bool - If true, the talk will be reset before get result.
+   * @param {fast} bool - If true, the child will be yielded in fast mode. Only works when asChild is true.
+   * @returns {string} - Result of part of agent response.
+   */
+  private async getAgentResponse(key: string, text: string, asChild: boolean = false, onetask: boolean = false, fast = false){
+    let order = asChild ? this.makeWorker(true, fast) : this
     if (onetask) order.reset()
-    let tmpPrompt = copy(ai.agentPrompt)[key]
-    tmpPrompt['Body'] = text
+    let tmpPrompt = copy(order.agentPrompt)[key]
+    tmpPrompt['Input'] = text
+    tmpPrompt.repeat = false
+    tmpPrompt.print = false
     return order.putUser(
       toMarkdown(tmpPrompt)
     ).run().then((x)=>{
@@ -483,105 +517,122 @@ ${results[n][nn]}`)
     })
   }
 
-  private async detectCommand(text: string, command: string, retry: number = 1){
-    // Make command
+  /**
+   * Detect command
+   * @param {text} string - Prompt for the AI.
+   * @param {command} string - If true, child will be yielded.
+   * @param {retry} number - Number of retry.
+   * @returns {string} - command
+   */
+  private async detectCommand(text: string, retry: number = 1){
+    if (this.mode === 'talk') return 'talk'
+    this.writer.message('Detecting command')
+    let command = ''
     for (let n=0; n < retry; n++){
-      let tmpCommand = (
-        await this.getAgentResponse('command', text, true, true)
+      command = (
+        await this.getAgentResponse('command', text, true, true, true)
       ).trim()
-      if (tmpCommand in this.agentPrompt){
-        command = tmpCommand
+      if (command in this.agentPrompt){
         break
       }
     }
+    this.writer.message(`Current mode is ${command}`)
     return command
   }
 
   async order(text: string, command: string = ''){
-    if (this.mode === 'talk') command = 'talk'
     this.writer.filename = this.filename
-    if (command === ''){
-      await this.writer.alart('Process command')
-      command = await this.detectCommand(text, command)
-      if (command === '') command = 'talk'
-      // Process
-      await this.writer.alart(`Current mode is ${command}`)
-    }
+    if (command === '') command = await this.detectCommand(text)
     switch (command) {
 
       default :
-        await this.writer.alart(`Command parse failed ${command}`)
+        await this.writer.message(`Command parse failed ${command}`)
         return (async()=>null)
 
+      case "write":
+        let coder = this.getAgentResponse('write', text, true, true, false)
+        return this.makeWorker(true, true).getAgentResponse("filename", text, true, true, true).then(filename =>{
+          runOnce(this)({'file': filename, 'prompt': text})
+        })
+
       case "talk":
+        return await this.putUser(text).run().then((x)=>{
+          this.putAssistant(x)
+          return x
+        })
+
+      case "plan":
+        this.getAgentResponse(command, text, true, true)
+          .then(async plan=>{
+            for (let files of divider(this.parallel)(getPlanPiece(plan).filter(x=>x.prompt !== ""))){
+              await Promise.all(files.map(runOnce(this)))
+            }
+          })
+        this.writer.message('Done!')
+
+      case "websearch":
+        if (this.use_websearch){
+          this.writer.message('Web search is going on.')
+          let websearch = this.makeWorker(false, false)
+          this.team['websearch'] = websearch
+          let prompt = await this.makeWorker(true).getAgentResponse(command, text, true, true, true)
+          console.log(prompt)
+          await this.webSearch(
+            prompt,
+            1, 10, toMarkdown(this.agentPrompt['denoise'])
+          )
+          return websearch.putUser(text).run().then((x)=>{
+            this.putAssistant(x)
+            return x
+          })
+        }
         return this.putUser(text).run().then((x)=>{
           this.putAssistant(x)
           return x
         })
 
-      case "write":
-        let filename = await this.getAgentResponse('filename', text, true)
-        if (filename[0] == "'") filename = filename.slice(1, filename.length - 1)
-        if (filename[0] == '"') filename = filename.slice(1, filename.length - 1)
-        this.writer.alart(`New file name ${filename}`)
-        this.writer.filename = filename.trim()
-        let original_filename = this.writer.filename
-        this.writer.makefile()
-        return this.getAgentResponse(command, text, true)
-          .then(async x=>{
-            try{
-              this.writer.write(x)
-              this.putUser(text)
-              this.putAssistant(x)
-              this.writer.filename = original_filename
-              return {type: command, content: x}
-            } catch(er) {
-              throw er
-            }
-          })
-
-      case "plan":
-        return this.getAgentResponse(command, text, true)
-          .then(x=>{
-            this.writer.write(x)
-          })
-
-      case "websearch":
-        if (this.websearch){
-          this.writer.alart('Web search is going on.')
-          await this.webSearch(await this.getAgentResponse(command, text, true))
-        }
-        return this.putUser(text).run().then((x)=>{
-            this.putAssistant(x)
-          return x
-        })
     }
   }
 
-  async better(command: Array<string>, text: string, filename: string){
-    process = new Deno.Command('sh', {
-      args: ['-c'].concat(command),
-      stdin: "piped",
-      stdout: "piped",
-      stderr: "piped",
-    }).spawn();
-    let out = await new TextDecoder().decode(process.stderr.getReader().read().value)
-    let err = await new TextDecoder().decode(process.stdout.getReader().read().value)
-    let prompt = copy(this.agentPrompt.better)
-    prompt.Error = err
-    prompt.Output = out
-    prompt.Body = text
-    return this.putUser(toMarkdown(prompt)).run().then(async (x)=>{
-        this.putAssistant(x)
-        let original_filename = this.writer.filename
-        this.writer.filename = filename.trim()
-        await this.writer.reset()
-        this.writer.write(x)
-        this.putUser(x)
-        this.writer.filename = original_filename
-      return x
-    })
-
-  }
-
 }
+
+
+/**
+ * Divide plan task
+ * @param {string} text - The result of plan
+ */
+function getPlanPiece(text: string){
+  let texts = text.split("\n")
+  let files: Array<object> = []
+  for (let t of texts){
+    if (t.length === 0) files[files.length-1]['prompt'].push(t)
+    if (t[0] !== ' ') files.push({file: t, prompt: []})
+    else files[files.length-1]['prompt'].push(t)
+  }
+  return files.map(x=>{return {file: x['file'], prompt: x['prompt'].map(y=>y.slice(4)).join('\n')}})
+}
+
+/**
+ * Divider of array.
+ * @param {number} num - The result of plan
+ * @returns {null} - It returns null.
+ */
+const divider = (num: number)=>(array: Array<any>) => {
+  return new Array(Math.ceil(array.length / num)).fill()
+    .map((_, i) => array.slice(i * num, (i + 1) * num))
+}
+
+/**
+ * Run write or plan task of agent
+ * @param {Order} order - The order
+ * @param {string} file - The filename
+ */
+const runOnce = (order) => async (file) => {
+  let child = order.makeWorker(true, false)
+  let x = await child.getAgentResponse('write', file.prompt, true, true, false)
+  await child.writer.makefile(file.file)
+  await child.writer.write(x, file.file)
+  await child.writer.hide(file.file)
+  order.putAssistant(x)
+}
+

@@ -126,11 +126,18 @@ repeat: boolean
     Repeat what you say on vim. Default is {v:true}.
 model: string
     Model name. Default is "gpt-4.1-nano".
+mode: string
+    The default mode of ninco. Default is 'talk'.
+filename: string
+    File name of buffer.
 url: string 
     Url of web api.
     Default is "https://api.openai.com/v1/chat/completions"
-key: string 
-    Key of your account.
+key_ai: string 
+    Key of your ai account.
+    Please put your api key.
+key_websearch: string 
+    Key of your websearch account.
     Please put your api key.
 max_length: number 
     If the length of talk thread is over this number, it will be compressed.
@@ -147,9 +154,6 @@ log: Array<Array<object>>
     Log of thread to go back.
     This should be yielded by talk of AI and you.
     You should not edit it.
-dry_run: boolean
-    Do not run AI but check output. Just for debug.
-    Default is {v:false}
 parent: string
     Name of parent thread.
     This should be yielded by ninco2 automatically.
@@ -160,6 +164,18 @@ freeze: boolean
     If it is true, talk log will not be updated.
     It is useful if you want to make many questions.
     Default is {v:false}.
+use_websearch: false
+    Use websearch in default.
+fast: null
+    Use auto optimization.
+agent: Object
+    Set of prompts for agent function.
+web_compress_prompt: string
+    Prompt to compress result of web search.
+    Default is "Please remove needless data and summaryze report below.\n".
+compress_prompt: string
+    Prompt to compress talk log.
+    Default is 'Please summarize this talk log.'.
 window_style: string
     Style for AI window.
     It should be 'float', 'horizontal' or 'vertical'.
@@ -169,6 +185,10 @@ float_geometry: Dictionary
     Default is {row: 2, col: 20, height: 6, width: 50}.
 timeout: Number
     Timeout in milisecond.
+platform: string
+    Platform of ninco.
+parallel: number
+    Number of parallel computation.
 
 Example
 >

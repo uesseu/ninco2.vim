@@ -1,6 +1,8 @@
 import {Order, copy} from './order.ts'
 import {processChunk} from './response_parser.ts'
 import {urlOption} from './defaults.ts'
+import TurndownService from "npm:turndown";
+
 
 /**
  * Search by duckduckgo.
@@ -33,11 +35,24 @@ export async function duckduckgo(query: string, start: number=1, num: number=10,
          .replace('&lt;', "<")
          .replace('&gt;', ">"),
        title: match[2]}
-    );
+    )
   }
   return links
 }
 
+async function getHTML(url){
+  const site = await fetch(url)
+  const reader = site.body.getReader()
+  let res: object
+  let html = ''
+  const decoder = new TextDecoder()
+  while (true){
+    res = await reader.read()
+    if (res.done) break
+    html += decoder.decode(res.value)
+  }
+  return html
+}
 
 /**
  * Read website by w3m.
@@ -46,10 +61,45 @@ export async function duckduckgo(query: string, start: number=1, num: number=10,
  */
 export async function readHTML(url){
   console.log(`Reading '${url}'`)
-  let process = new Deno.Command('w3m', {args: [url, '-dump']});
-  return process.output().then(
-    x=> new TextDecoder().decode(x.stdout)
-  )
+  const turndownService = new TurndownService()
+  turndownService.remove('script')
+  turndownService.remove('style')
+  let html = await getHTML(url)
+  return turndownService.turndown(html)
 }
 
+export const SearchEngine = {
+  brave: 'https://api.search.brave.com/res/v1/web/search',
+  duckduckgo: 'https://lite.duckduckgo.com/lite/'
+}
 
+export class Web{
+  apikey: string
+  url: string
+
+  constructor(url: string, apikey: string = ''){
+    this.url = url
+    this.apikey = apikey
+  }
+
+  search(query, count: number = 10, country: string = 'us', search_lang: string = 'en'){
+    return fetch(
+      `${this.url}?${new URLSearchParams({
+        q: query,
+        count: 10,
+        country: "us",
+        search_lang: "en",
+      })}`,
+      {
+        headers: {
+          "X-Subscription-Token": this.apikey,
+        },
+      },
+    ).then(async response => {
+      let res = await response.json()
+      console.log(res, query, this.apikey)
+      return res.web.results.map(x=>{return {link: x.url, title: x.title}})
+    })
+  }
+
+}

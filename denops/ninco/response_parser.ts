@@ -31,16 +31,22 @@ export function parseResponseChatgpt(response: any): any{
   if (response.trim().slice(0, 8) === ": ping -") return ""
   if (response[0] !== "[") {
     try {
-      return Array(JSON.parse(response.trim().slice(5)))
-      .filter(x => x !== "")
-      .map(x => {
+      return Array(JSON.parse(response.trim().slice(5))).filter(x => x !== "").map(x => {
         try{
           return x["choices"][0]["delta"]["content"]
         } catch (er) {
+          if (debug){
+            console.log(er)
+            console.log(response)
+          }
           return ''
         }
       }).join("")
     } catch (er) {
+      if (debug){
+        console.log(er)
+        console.log(response)
+      }
       return "[Error]"
     }
   }

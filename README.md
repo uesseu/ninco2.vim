@@ -20,6 +20,7 @@ However, I use it in daily life and it is useful for me. It can...
 - Almost all the commands can work by method chain
 
 # Requirements
+
 Vim or neovim, Denops and API key of openai is also needed.
 About library, it depends only on denops and so please see the requirements of denops.
 
@@ -57,8 +58,6 @@ At first, write config. The dictionary below is all the options.
     + Buffer name to write.
 - log: Array
     + Log of thread to go back
-- dry_run: boolean
-    + Just for debug.
 
 ```vim
 let ai_config = #{

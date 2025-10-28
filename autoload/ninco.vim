@@ -1,3 +1,5 @@
+call denops#request('ninco', 'putEnv', [environ()])
+
 function ninco#get_selection()
   let [line_start, column_start] = "'<"->getpos()[1:2]
   let [line_end, column_end] = "'>"->getpos()[1:2]
@@ -8,6 +10,13 @@ function ninco#get_selection()
   let lines[-1] = lines[-1][: column_end - (&selection == 'inclusive' ? 1 : 2)]
   let lines[0] = lines[0][column_start - 1:]
   return lines->join("\n")
+endfunction
+
+function! ninco#atmark(input)
+  if a:input[0:2] == '@@ '
+    return '@@ '.eval('$"'.$"{a:input[3:]}".'"')
+  endif
+  return a:input
 endfunction
 
 function! ninco#delete(name)
@@ -57,9 +66,12 @@ function! ninco#open(ai)
   return bufname
 endfunction
 
-function! ninco#split_window(buf='', vertical=v:false)
+function! ninco#split_window(buf='', vertical=v:false, set_name=v:true)
   if a:buf->bufwinid() != -1
     return
+  endif
+  if a:set_name
+    call ninco#set_bufname(a:buf)
   endif
   execute (a:vertical ?'vsplit ':'split ').a:buf
   setlocal noswapfile
@@ -78,8 +90,12 @@ function ninco#new(options = #{}, name='ai')
     echo "Invalid thread name. Please use alphabet, integer and underbar"
     return
   endif
+  let options = a:options
+  if !has_key(options, 'key') || options['key'] == ''
+    let options['key'] = $NINCO_KEY
+  endif
   return denops#request('ninco', 'new',
-        \[a:name, a:options->extend(#{name: a:name})])
+        \[a:name, options->extend(#{name: a:name})])
 endfunction
 
 function ninco#config(name, options = #{})
@@ -92,8 +108,8 @@ function ninco#set_bufname(name)
   return a:name
 endfunction
 
-function ninco#option(name, options = #{})
-  call denops#request('ninco', 'config', [a:name, a:options->extend(#{name: a:name})])
+function ninco#set_param(name, options = #{})
+  call denops#request('ninco', 'setParam', [a:name, a:options])
   return a:name
 endfunction
 
@@ -112,11 +128,14 @@ function! ninco#copy(source, dest='')
   return a:dest
 endfunction
 
-function! ninco#run(context, order='%s', ...)
-  let order = 'printf'->call([a:order]+ a:000)
-  call denops#request('ninco', 'run', [a:context, order, ''])
+function! ninco#run(context, order='%s', mode='')
+  call denops#notify('ninco', 'run', [a:context, a:order, a:mode])
   call ninco#compress(a:context)
   return a:context
+endfunction
+
+function! ninco#ninco(order='%s')
+  call denops#notify('ninco', 'ninco', [a:order])
 endfunction
 
 function! ninco#better(context, command)
@@ -132,7 +151,6 @@ endfunction
 
 function! ninco#put_window(args, buf, winid = '-1', normal = v:false) abort
   let winid = a:winid == '-1'? a:buf->bufwinid() : a:winid
-  echo winid
   let lin = a:buf->getbufline('.'->line(winid))
   let lin = len(lin)? lin[-1] : ''
   let text = lin . a:args->substitute('\\ ', ' ', 'g')
@@ -193,15 +211,15 @@ endfunction
 
 let s:cmd = {}
 
-function ninco#command_wrapper(...)
-  let args = a:000
-  if a:000->len() == 1 || a:000[1]->match('%s') != -1
+function ninco#command_wrapper(name, text)
+  let args = a:text
+  if a:text->match('%s') != -1
     let [line_end, column_end] = "'>"->getpos()[1:2]
     call setpos('.', [0, column_end, 0, 0])
     norm o
-    let args = args + [ninco#get_selection()]
+    let args = printf(args, ninco#get_selection())
   endif
-  call call('ninco#run', args)
+  call ninco#run(a:name, args)
 endfunction
 
 function ninco#make_command(cmd)
@@ -228,9 +246,9 @@ function! ninco#_find_vim_popup(buf) abort
   return -1
 endfunction
 
-function! ninco#web_search(name, query, num=10, compress_prompt='', string_num = 10000)
-  call denops#request('ninco', 'webSearch',
-        \[a:name, a:query, a:num, a:compress_prompt, a:string_num])
+function! ninco#websearch(name, query, num=10, string_num = 10000)
+  call denops#request('ninco', 'websearch',
+        \[a:name, a:query, a:num, a:string_num])
 endfunction
 
 function! ninco#float(buf, pos = #{row: 2, col: 20, height: 6, width: 50}) abort
