@@ -57,7 +57,7 @@ console.log(` _   _ _                  ____ _     ___
 | |\\  | | | | | (_| (_) | |___| |___ | | 
 |_| \\_|_|_| |_|\\___\\___/ \\____|_____|___|
 
-Type @exit to exit.
+Type @exit to exit. You can use completion by hitting tab.
 `)
 
 async function runcommand(connection, exitfunc=()=>Deno.exit()) {
